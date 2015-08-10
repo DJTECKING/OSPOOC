@@ -1,21 +1,17 @@
 #ifndef __OSPOBJ_H__
 #define __OSPOBJ_H__
 
-#include<stdlil.h>
+#include<stdlib.h>
 #include<stdio.h>
 #include<termios.h>
 #include<stdint.h>
 #include<unistd.h>
+#include<sys/epoll.h>
 #include<sys/types.h>
 #include<sys/stat.h>
 #include<time.h>
 /* #include<.h> */
 /* #include".h" */
-
-typedef struct functdesc_s {
-    uint64_t _functionid; /* Function id */
-    void (*_function)(struct OSPobj *, void *); /* Function pointer */
-} functdesc;
 
 typedef struct OSPobj_s {
     struct OSPobj_s *_slv; /* Slave */
@@ -23,8 +19,13 @@ typedef struct OSPobj_s {
     struct OSPobj_s *_prv; /* Previous */
     struct OSPobj_s *_nxt; /* Next */
     void *_OSPdat; /* Data pointer */
-    void (*_OSPFct[])(struct OSPobj *, void *); /* Function array */
+    void (*_OSPFct[])(struct OSPobj_s *, void *); /* Function array */
 } OSPobj;
+
+typedef struct functdesc_s {
+    uint64_t _functionid; /* Function id */
+    void (*_function)(struct OSPobj_s *, void *); /* Function pointer */
+} functdesc;
 
 typedef enum {
     ADDOBJ,

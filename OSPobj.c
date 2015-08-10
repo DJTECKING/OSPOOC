@@ -16,11 +16,11 @@ static struct {
     
     functelement *_functqueue;
     functelement *_functend;
-    uint64_t _functcount;
+    uint64_t _elementnumber;
     size_t _datasize;
 
     OSPobj *_current;
-} OSProot = 0;
+} *OSProot = 0;
 
 static void OSPMerge(OSPobj *master, OSPobj *slave) {
     slave->_mtr = master;
@@ -79,31 +79,61 @@ OSPobj *OSPAdd(OSPaddtask task, void *arg) {
     functdesc *fctarg = (functdesc *) arg;
     
     if(!OSProot) {
-        OSProot->_functionqueue = calloc(1024, sizeof(functelement));
-        OSProot->_functionend = OSProot->_functionqueue;
+        OSProot = calloc(FUNCALLOCSIZE, sizeof(*OSProot));
+        OSProot->_functqueue = calloc(FUNCALLOCSIZE, sizeof(functelement));
+        OSProot->_functend = OSProot->_functqueue;
     }
     
     switch(task) {
     case ADDOBJ:
-        if(!objarg) objarg = OSProot;
+        if(!objarg) objarg = (OSPobj *) OSProot;
         
         OSProot->_current = calloc(1, sizeof(OSPobj) +
-                                    (sizeof(void *) * OSProot->_functcount) +
+                                    (sizeof(void *) * OSProot->_elementnumber) +
                                     OSProot->_datasize);
         OSPMerge(objarg, OSProot->_current);
         
         {
-            functelement *functcurrent;
-            for(functcurrent = OSProot->_functqueue;
-                functcurrent != OSProot->_functend;
-                functcurrent = functcurrent->_nxt) {
-                OSProot->_current->_OSPFct[functcurrent->_function->_functionid] =
-                                            functcurrent->_function->_function;
+            functelement *functcurrent = OSProot->_functqueue;
+            while(functcurrent) {
+                OSProot->_current->_OSPFct[functcurrent->_function._functionid] =
+                                            functcurrent->_function._function;
             }
+            
+            OSProot->_current->_OSPFct[functcurrent->_function._functionid] =
+                                            functcurrent->_function._function;
         }
         break;
     case ADDFCT:
+        if(fctarg) {
+            uint64_t elementnumber = OSProot->_functend->_elementnumber + 1;
+            functelement *newelement;
+            if(!elementnumber) return 0;
+            
+            newelement = elementnumber % FUNCALLOCSIZE ?
+                        &OSProot->_functend[1] :
+                        calloc(FUNCALLOCSIZE, sizeof(functelement));
+
+            /* newelement->_nxt = 0; done by calloc */
+            newelement->_function._function = fctarg->_function;
+            newelement->_function._functionid = fctarg->_functionid;
+            newelement->_elementnumber = elementnumber;
+            newelement->_prv = OSProot->_functend;
+            OSProot->_functend->_nxt = newelement;
+            OSProot->_functend = newelement;
+        }
+        else{
+            while(OSProot->_functend->_elementnumber) {
+                OSProot->_functend = OSProot->_functend->_prv;
+                if((OSProot->_functend->_elementnumber + 1) % FUNCALLOCSIZE) {
+                    free(OSProot->_functend->_nxt);
+                }
+            }
+        }
+        
         break;
-    default:
+    default:;
     }
+    
+    return 0;
 }
