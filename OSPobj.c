@@ -35,6 +35,8 @@ static void OSPMerge(OSPobj *master, OSPobj *slave) {
         slave->_nxt = slave;
         slave->_prv = slave;
     }
+
+    master->_slv = slave;
 }
 
 static void OSPSplit(OSPobj *object) {
@@ -77,26 +79,30 @@ OSPobj *OSPAdd(OSPaddtask task, void *arg) {
         OSProot = calloc(1, sizeof(*OSProot));
         OSProot->_functqueue = calloc(FUNCALLOCSIZE, sizeof(functelement));
         OSProot->_functend = OSProot->_functqueue;
+        OSProot->_functend->_prv = 0;
+        OSProot->_functend->_elementnumber = 0;
+        OSProot->_elementnumber = 0;
     }
     
     switch(task) {
     case ADDOBJ:
         if(!objarg) objarg = (OSPobj *) OSProot;
         
-        OSProot->_current = calloc(1, sizeof(OSPobj) +
-                                    (sizeof(void *) * OSProot->_elementnumber) +
-                                    OSProot->_datasize);
-        OSPMerge(objarg, OSProot->_current);
-        
         {
             functelement *functcurrent = OSProot->_functqueue;
+            uint64_t elementnumber = OSProot->_elementnumber;
+            if(elementnumber < 2) elementnumber = 2;
+            
+            OSProot->_current = calloc(1, sizeof(OSPobj) +
+                                        (sizeof(void *) * elementnumber) +
+                                        OSProot->_datasize);
+            OSPMerge(objarg, OSProot->_current);
+        
             while(functcurrent) {
                 OSProot->_current->_OSPFct[functcurrent->_function._functionid] =
                                             functcurrent->_function._function;
+		functcurrent = functcurrent->_nxt;
             }
-            
-            OSProot->_current->_OSPFct[functcurrent->_function._functionid] =
-                                            functcurrent->_function._function;
         }
         
         OSProot->_current->_OSPdat = &OSProot->_current->_OSPFct[OSProot->_elementnumber];
@@ -112,37 +118,36 @@ OSPobj *OSPAdd(OSPaddtask task, void *arg) {
         break;
     case ADDFCT:
         if(fctarg) {
-            functelement *newelement;
-            
-            if(OSProot->_elementnumber % FUNCALLOCSIZE) {
-                newelement = &OSProot->_functend[1];
+            if(OSProot->_elementnumber) {
+                if((OSProot->_functend->_elementnumber + 1) % FUNCALLOCSIZE) {
+                    OSProot->_functend->_nxt = &OSProot->_functend[1];
+                    OSProot->_functend->_nxt->_prv = OSProot->_functend;
+                    OSProot->_functend = OSProot->_functend->_nxt;
+                }
+                else {
+                    functelement *functend = OSProot->_functend;
+                    OSProot->_functend = calloc(FUNCALLOCSIZE, sizeof(functelement));
+                    OSProot->_functend->_prv = functend;
+                }
             }
-            else if(OSProot->_elementnumber) {
-                newelement = calloc(FUNCALLOCSIZE, sizeof(functelement));
+
+            if(OSProot->_functend->_prv) {
+                OSProot->_functend->_elementnumber = OSProot->_functend->_prv->_elementnumber + 1;
             }
             else {
-                newelement = OSProot->_functend;
+                OSProot->_functend->_elementnumber = 0;
             }
             
-            /* newelement->_nxt = 0; done by calloc */
-            newelement->_function._function = fctarg->_function;
-            newelement->_function._functionid = fctarg->_functionid;
-            newelement->_elementnumber = OSProot->_elementnumber;
-            if(!(OSProot->_elementnumber++)) {
-                newelement->_prv = 0;
-                newelement = &newelement[1];
-            }
-            newelement->_prv = OSProot->_functend;
-
-            OSProot->_functend->_nxt = newelement;
-            OSProot->_functend = newelement;
+            /* OSProot->_functend->_nxt = 0; done by calloc */
+            OSProot->_functend->_function._function = fctarg->_function;
+            OSProot->_functend->_function._functionid = fctarg->_functionid;
             
-            if(OSProot->_elementnumber < (fctarg->_functionid + 1)) {
+            if(OSProot->_elementnumber <= fctarg->_functionid) {
                 OSProot->_elementnumber = fctarg->_functionid + 1;
             }
         }
         else{
-            while(OSProot->_functend->_elementnumber) {
+            while(OSProot->_functend->_prv) {
                 OSProot->_functend = OSProot->_functend->_prv;
                 if(!((OSProot->_functend->_elementnumber + 1) % FUNCALLOCSIZE)) {
                     free(OSProot->_functend->_nxt);
@@ -160,7 +165,7 @@ OSPobj *OSPAdd(OSPaddtask task, void *arg) {
         }
         else {
             while(OSProot->_toplevels) OSPDO(OSProot->_toplevels, OSPMNG, 0);
-            OSPAdd(ADDFCT, 0);
+            OSPRESET;
             
             free(OSProot->_functqueue);
             free(OSProot);
@@ -178,7 +183,8 @@ void OSPMng(OSPobj *obj, void *mtr) {
     }
     else {
         while(obj->_slv) OSPDO(obj->_slv, OSPMNG, 0);
-        OSPDO(obj, OSPMNG, 0);
+        OSPSplit(obj);
+        free(obj);
     }
 }
 
