@@ -64,22 +64,17 @@ static void OSPSplit(OSPobj *object) {
         }
     }
     
-    if(object->_nxt == object) {
-        object->_mtr->_slv = 0;
-    }
-    else {
-        object->_mtr->_slv = object->_nxt;
-    }
-    
+    object->_mtr->_slv = object->_nxt == object ? 0 : object->_nxt;
     object->_mtr = 0;
 }
 
 OSPobj *OSPAdd(OSPaddtask task, void *arg) {
     OSPobj *objarg = (OSPobj *) arg;
     functdesc *fctarg = (functdesc *) arg;
+    size_t *datarg = (size_t *) arg;
     
     if(!OSProot) {
-        OSProot = calloc(FUNCALLOCSIZE, sizeof(*OSProot));
+        OSProot = calloc(1, sizeof(*OSProot));
         OSProot->_functqueue = calloc(FUNCALLOCSIZE, sizeof(functelement));
         OSProot->_functend = OSProot->_functqueue;
     }
@@ -103,37 +98,90 @@ OSPobj *OSPAdd(OSPaddtask task, void *arg) {
             OSProot->_current->_OSPFct[functcurrent->_function._functionid] =
                                             functcurrent->_function._function;
         }
+        
+        OSProot->_current->_OSPdat = &OSProot->_current->_OSPFct[OSProot->_elementnumber];
+        
+        if(!OSProot->_current->_OSPFct[0]) {
+            OSProot->_current->_OSPFct[0] = OSPMng;
+        }
+        if(!OSProot->_current->_OSPFct[1]) {
+            OSProot->_current->_OSPFct[1] = OSPDui;
+        }
+        
+        return OSProot->_current;
         break;
     case ADDFCT:
         if(fctarg) {
-            uint64_t elementnumber = OSProot->_functend->_elementnumber + 1;
             functelement *newelement;
-            if(!elementnumber) return 0;
             
-            newelement = elementnumber % FUNCALLOCSIZE ?
-                        &OSProot->_functend[1] :
-                        calloc(FUNCALLOCSIZE, sizeof(functelement));
-
+            if(OSProot->_elementnumber % FUNCALLOCSIZE) {
+                newelement = &OSProot->_functend[1];
+            }
+            else if(OSProot->_elementnumber) {
+                newelement = calloc(FUNCALLOCSIZE, sizeof(functelement));
+            }
+            else {
+                newelement = OSProot->_functend;
+            }
+            
             /* newelement->_nxt = 0; done by calloc */
             newelement->_function._function = fctarg->_function;
             newelement->_function._functionid = fctarg->_functionid;
-            newelement->_elementnumber = elementnumber;
+            newelement->_elementnumber = OSProot->_elementnumber;
+            if(!(OSProot->_elementnumber++)) {
+                newelement->_prv = 0;
+                newelement = &newelement[1];
+            }
             newelement->_prv = OSProot->_functend;
+
             OSProot->_functend->_nxt = newelement;
             OSProot->_functend = newelement;
+            
+            if(OSProot->_elementnumber < (fctarg->_functionid + 1)) {
+                OSProot->_elementnumber = fctarg->_functionid + 1;
+            }
         }
         else{
             while(OSProot->_functend->_elementnumber) {
                 OSProot->_functend = OSProot->_functend->_prv;
-                if((OSProot->_functend->_elementnumber + 1) % FUNCALLOCSIZE) {
+                if(!((OSProot->_functend->_elementnumber + 1) % FUNCALLOCSIZE)) {
                     free(OSProot->_functend->_nxt);
                 }
             }
+            
+            OSProot->_elementnumber = 0;
+            OSProot->_datasize = 0;
         }
         
         break;
-    default:;
+    default:
+        if(datarg) {
+            OSProot->_datasize += datarg[0];
+        }
+        else {
+            while(OSProot->_toplevels) OSPDO(OSProot->_toplevels, OSPMNG, 0);
+            OSPAdd(ADDFCT, 0);
+            
+            free(OSProot->_functqueue);
+            free(OSProot);
+        }
     }
     
     return 0;
+}
+    
+void OSPMng(OSPobj *obj, void *mtr) {
+    OSPSplit(obj);
+    
+    if(mtr) {
+        OSPMerge(mtr, obj);
+    }
+    else {
+        while(obj->_slv) OSPDO(obj->_slv, OSPMNG, 0);
+        OSPDO(obj, OSPMNG, 0);
+    }
+}
+
+void OSPDui(OSPobj *obj, void *arg) {
+    printf("Object is located at %p\n", obj);
 }

@@ -33,9 +33,15 @@ typedef enum {
     ADDSZE
 } OSPaddtask;
 
+#define OSPMNG 0
+#define OSPDUI 1
+
+#define OSPDO(object, fctid, argptr) {object->_OSPFct[fctid](object, argptr);}
 #define OSPRESET OSPAdd(ADDFCT, 0);
 #define OSPFREEALL OSPAdd(ADDSZE, 0);
 
-OSPobj *OSPAdd(OSPaddtask task, void *arg);
+OSPobj *OSPAdd(OSPaddtask, void *);
+void OSPMng(OSPobj *, void *);
+void OSPDui(OSPobj *, void *);
 
 #endif /* __OSPOBJ_H__ */
