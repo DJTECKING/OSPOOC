@@ -36,7 +36,8 @@ typedef enum {
 #define OSPMNG 0
 #define OSPDUI 1
 
-#define OSPDO(object, fctid, argptr) {object->_OSPFct[fctid](object, argptr);}
+#define OSPDO(object, fctid, argptr) {(object)->_OSPFct[fctid]((object), (argptr));}
+#define OSPADDFCT(fctid, fctptr) {functdesc fdesc = {(fctid), (fctptr)}; OSPAdd(ADDFCT, &fdesc);}
 #define OSPRESET OSPAdd(ADDFCT, 0);
 #define OSPFREEALL OSPAdd(ADDSZE, 0);
 
