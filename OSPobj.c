@@ -70,6 +70,24 @@ static void OSPSplit(OSPobj *object) {
     object->_mtr = 0;
 }
 
+void OSPMng(OSPobj *obj, void *mtr) {
+    OSPSplit(obj);
+    
+    if(mtr) {
+        OSPMerge(mtr, obj);
+    }
+    else {
+        while(obj->_slv) OSPDEL(obj->_slv);
+        if(obj->_tfd >= 0) close(obj->_tfd);
+        OSPSplit(obj);
+        free(obj);
+    }
+}
+
+void OSPDui(OSPobj *obj, void *arg) {
+    printf("Object is located at %p\n", obj);
+}
+
 OSPobj *OSPAdd(OSPaddtask task, void *arg) {
     OSPobj *objarg = (OSPobj *) arg;
     functdesc *fctarg = (functdesc *) arg;
@@ -77,11 +95,11 @@ OSPobj *OSPAdd(OSPaddtask task, void *arg) {
     
     if(!OSProot) {
         OSProot = calloc(1, sizeof(*OSProot));
+        
+        OSProot->_eventpoll = epoll_create1(0);
+        
         OSProot->_functqueue = calloc(FUNCALLOCSIZE, sizeof(functelement));
         OSProot->_functend = OSProot->_functqueue;
-        OSProot->_functend->_prv = 0;
-        OSProot->_functend->_elementnumber = 0;
-        OSProot->_elementnumber = 0;
     }
     
     switch(task) {
@@ -99,19 +117,20 @@ OSPobj *OSPAdd(OSPaddtask task, void *arg) {
             OSPMerge(objarg, OSProot->_current);
         
             while(functcurrent) {
-                OSProot->_current->_OSPFct[functcurrent->_function._functionid] =
+                OSProot->_current->_fct[functcurrent->_function._functionid] =
                                             functcurrent->_function._function;
-		functcurrent = functcurrent->_nxt;
+				functcurrent = functcurrent->_nxt;
             }
         }
         
-        OSProot->_current->_OSPdat = &OSProot->_current->_OSPFct[OSProot->_elementnumber];
+        OSProot->_current->_tfd = -1;
+        OSProot->_current->_dat = &OSProot->_current->_fct[OSProot->_elementnumber];
         
-        if(!OSProot->_current->_OSPFct[0]) {
-            OSProot->_current->_OSPFct[0] = OSPMng;
+        if(!OSProot->_current->_fct[0]) {
+            OSProot->_current->_fct[0] = OSPMng;
         }
-        if(!OSProot->_current->_OSPFct[1]) {
-            OSProot->_current->_OSPFct[1] = OSPDui;
+        if(!OSProot->_current->_fct[1]) {
+            OSProot->_current->_fct[1] = OSPDui;
         }
         
         return OSProot->_current;
@@ -164,8 +183,10 @@ OSPobj *OSPAdd(OSPaddtask task, void *arg) {
             OSProot->_datasize += datarg[0];
         }
         else {
-            while(OSProot->_toplevels) OSPDO(OSProot->_toplevels, OSPMNG, 0);
+            while(OSProot->_toplevels) OSPDEL(OSProot->_toplevels);
             OSPRESET;
+            
+            close(OSProot->_eventpoll);
             
             free(OSProot->_functqueue);
             free(OSProot);
@@ -174,20 +195,31 @@ OSPobj *OSPAdd(OSPaddtask task, void *arg) {
     
     return 0;
 }
-    
-void OSPMng(OSPobj *obj, void *mtr) {
-    OSPSplit(obj);
-    
-    if(mtr) {
-        OSPMerge(mtr, obj);
-    }
-    else {
-        while(obj->_slv) OSPDO(obj->_slv, OSPMNG, 0);
-        OSPSplit(obj);
-        free(obj);
-    }
+
+void OSPTrg(trigdesc *trigdescription) {
+	struct epoll_event event = {trigdescription->_events, {trigdescription->_object}};
+	if(!trigdescription) return;
+	if(!trigdescription->_object) return;
+	
+	trigdescription->_object->_tpt = trigdescription->_pointer;
+	
+	if(trigdescription->_filedesc < 0) {
+		epoll_ctl(OSProot->_eventpoll, EPOLL_CTL_DEL, trigdescription->_object->_tfd, &event);
+		trigdescription->_object->_tfd = -1;
+	}
+	else if(trigdescription->_object->_tfd < 0) {
+		epoll_ctl(OSProot->_eventpoll, EPOLL_CTL_ADD, trigdescription->_filedesc, &event);
+	}
+	else {
+		epoll_ctl(OSProot->_eventpoll, EPOLL_CTL_MOD, trigdescription->_object->_tfd, &event);
+	}
 }
 
-void OSPDui(OSPobj *obj, void *arg) {
-    printf("Object is located at %p\n", obj);
+void OSPWte(int miliseconds) {
+	struct epoll_event event;
+	
+	if(epoll_wait(OSProot->_eventpoll, &event, 1, miliseconds)) {
+		OSPobj *obj = event.data.ptr;
+		OSPRUN(obj, obj->_trg, obj->_tpt);
+	}
 }
