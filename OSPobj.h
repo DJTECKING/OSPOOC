@@ -8,41 +8,43 @@
 #include<unistd.h>
 #include<termios.h>
 #include<X11/Xlib.h>
+#include<X11/Xutil.h> /* For visual informations */
 #include<sys/stat.h>
 #include<sys/epoll.h>
 #include<sys/types.h>
+#include<sys/socket.h>
 /* #include<.h> */
 /* #include".h" */
 
 typedef struct OSPobj_s {
-    struct OSPobj_s *_slv; /* Slave */
-    struct OSPobj_s *_mtr; /* Master */
-    struct OSPobj_s *_prv; /* Previous */
-    struct OSPobj_s *_nxt; /* Next */
-    void *_dat; /* Data pointer */
-    int _tfd; /* File descriptor used as trigger source */
-    uint64_t _trg; /* Trigger function id */
-    void *_tpt; /* Trigger pointer argument */
-    void (*_fct[])(struct OSPobj_s *, void *); /* Function array */
+	struct OSPobj_s *_slv; /* Slave */
+	struct OSPobj_s *_mtr; /* Master */
+	struct OSPobj_s *_prv; /* Previous */
+	struct OSPobj_s *_nxt; /* Next */
+	void *_dat; /* Data pointer */
+	int _tfd; /* File descriptor used as trigger source */
+	uint64_t _trg; /* Trigger function id */
+	void *_tpt; /* Trigger pointer argument */
+	void (*_fct[])(struct OSPobj_s *, void *); /* Function array */
 } OSPobj;
 
 typedef struct {
-    uint64_t _functionid; /* Function id */
-    void (*_function)(struct OSPobj_s *, void *); /* Function pointer */
+	uint64_t _functionid; /* Function id */
+	void (*_function)(struct OSPobj_s *, void *); /* Function pointer */
 } functdesc;
 
 typedef struct {
 	OSPobj *_object; /* Object to be triggered */
-    int _filedesc; /* file descriptor to use as trigger source */
-    void *_pointer; /* Argument to be passed when triggering */
+	int _filedesc; /* file descriptor to use as trigger source */
+	void *_pointer; /* Argument to be passed when triggering */
 	uint64_t _functionid; /* Function id to run in object */
-    uint32_t _events; /* epoll events option */
+	uint32_t _events; /* epoll events option */
 } trigdesc;
 
 typedef enum {
-    ADDOBJ,
-    ADDFCT,
-    ADDSZE
+	ADDOBJ,
+	ADDFCT,
+	ADDSZE
 } OSPaddtask;
 
 #define OSPMNG 0
@@ -58,7 +60,8 @@ typedef enum {
 #define OSPRESET OSPAdd(ADDFCT, 0);
 #define OSPFREEALL OSPAdd(ADDSZE, 0);
 
-#define OSPTRG(objptr, fd, fctid, event) {trigdesc tdesc = {(objptr), (fd), (fctid), (event)}; OSPTrg(&tdesc);}
+#define OSPTRG(objptr, fd, pointer, fctid, event)\
+	{trigdesc tdesc = {(objptr), (fd), (pointer), (fctid), (event)}; OSPTrg(&tdesc);}
 
 void OSPMng(OSPobj *, void *);
 void OSPDui(OSPobj *, void *);
@@ -66,6 +69,6 @@ void OSPDui(OSPobj *, void *);
 OSPobj *OSPAdd(OSPaddtask, void *);
 
 void OSPTrg(trigdesc *);
-void OSPWte(int); /* -1 = always */
+OSPobj *OSPWte(int); /* -1 = always */
 
 #endif /* __OSPOBJ_H__ */
