@@ -66,7 +66,7 @@ static void OSPSplit(OSPobj *object) {
 		}
 	}
 	
-	object->_mtr->_slv = object->_nxt == object ? 0 : object->_nxt;
+	object->_mtr->_slv = (object->_nxt == object) ? 0 : object->_nxt;
 	object->_mtr = 0;
 }
 
@@ -203,8 +203,6 @@ void OSPTrg(trigdesc *trigdescription) {
 	if(!trigdescription) return;
 	if(!trigdescription->_object) return;
 	
-	printf("FD = %d\n", trigdescription->_filedesc);
-	trigdescription->_object->_tfd = trigdescription->_filedesc;
 	trigdescription->_object->_trg = trigdescription->_functionid;
 	trigdescription->_object->_tpt = trigdescription->_pointer;
 	
@@ -214,6 +212,7 @@ void OSPTrg(trigdesc *trigdescription) {
 	}
 	else if(trigdescription->_object->_tfd < 0) {
 		epoll_ctl(OSProot->_eventpoll, EPOLL_CTL_ADD, trigdescription->_filedesc, &event);
+		trigdescription->_object->_tfd = trigdescription->_filedesc;
 	}
 	else {
 		epoll_ctl(OSProot->_eventpoll, EPOLL_CTL_MOD, trigdescription->_object->_tfd, &event);
@@ -229,8 +228,6 @@ OSPobj *OSPWte(int miliseconds) {
 		OSPRUN(obj, obj->_trg, obj->_tpt);
 		return obj;
 	}
-
-	printf("Time expired\n");
 	
 	return 0;
 }

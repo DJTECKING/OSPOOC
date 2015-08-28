@@ -51,7 +51,6 @@ typedef struct {
 typedef struct {
 	Window _window;
 	XImage _image; /* Client side image of the window */
-	int _x, _y; /* Updated every expose events */
 	int _width, _height, _depth;
 	OSPwndCommon *_connection;
 	OSPwndCommon _common; /* Never use common fields directly */ 
@@ -82,7 +81,7 @@ static void OSPwndMng(OSPobj *wnd, void *arg) {
 		}
 	}
 		
-	OSPMng(wnd, parent); /* Delete this window */
+	OSPMng(wnd, parent); /* Delete or move this window */
 }
 
 static void OSPProceedXEvent(OSPobj *wnd, void *arg) { /* Fetch and proceeds event */
@@ -125,10 +124,9 @@ static void OSPProceedXEvent(OSPobj *wnd, void *arg) { /* Fetch and proceeds eve
 			
 			switch(winstruct->_connection->_event.type) {
 			case Expose:
-				winstruct->_x = winstruct->_connection->_event.xexpose.x;
-				winstruct->_y = winstruct->_connection->_event.xexpose.y;
 				winstruct->_width = winstruct->_connection->_event.xexpose.width;
 				winstruct->_height = winstruct->_connection->_event.xexpose.height;
+				printf("w = %d, h = %d\n", winstruct->_width, winstruct->_height);				
 				break;
 				
 			case DestroyNotify: /* Will you please close your window */
@@ -190,7 +188,7 @@ typedef enum {
 static OSPbuildwindowtype OSPlastbuildwindowtype = BLDWNDSUB;
 
 void OSPBuildWindow(OSPbuildwindowtype type) {
-	size_t size = sizeof(OSPwnd) - (type == BLDWNDSUB) ? sizeof(OSPwndCommon) : 0;
+	size_t size = sizeof(OSPwnd) - ((type == BLDWNDSUB) ? sizeof(OSPwndCommon) : 0);
 	OSPlastbuildwindowtype = type;
 	printf("Window building\n");
 
@@ -224,6 +222,7 @@ OSPobj *OSPAddWindow(OSPobj *parent, uint8_t *status, char *displayname) {
 	
 	ret = OSPADDOBJ(parent);
 	winstruct = ret->_dat;
+	
 	if(parent) {
 		winstruct->_connection = parentwinstruct->_connection;
 	}
@@ -278,9 +277,9 @@ OSPobj *OSPAddWindow(OSPobj *parent, uint8_t *status, char *displayname) {
 		XMapWindow(display, wnd);
 		XFlush(display);
 		
-		
-		printf("FD = %d\n", XConnectionNumber(display));
+		printf("common offset = %ld\n", (void *) winstruct->_connection - (void *) ret);
 
+		ret->_tfd = -1;
 		OSPTRG(ret, XConnectionNumber(display), status,
 			OSPPROCEEDXEVENT, EPOLLIN | EPOLLHUP); /* Set the trigger function */
 	}
@@ -290,17 +289,15 @@ OSPobj *OSPAddWindow(OSPobj *parent, uint8_t *status, char *displayname) {
 
 int main(int argc, char* argv[])
 {
-	uint8_t run = 1;
+	uint8_t run1 = 1;
+	uint8_t run2 = 1;
 	
 	OSPBuildWindow(BLDWNDMAIN);
-	OSPobj *window = OSPAddWindow(0, &run, 0);
+	OSPobj *window1 = OSPAddWindow(0, &run1, 0);
+	OSPobj *window2 = OSPAddWindow(0, &run2, 0);
 	
-	sleep(10);
-	
-	while(run) {
-		printf("run\n");
+	while(run1 || run2) {
 		OSPobj *append = OSPWte(0); /* -1 = always */
-		run = 0;
 	}
 	
 	OSPFREEALL;

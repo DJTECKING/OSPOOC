@@ -1,0 +1,7 @@
+Resolve segfault with this back trace :
+
+#0  0x00007ffff7a9e7e8 in main_arena () from /lib/x86_64-linux-gnu/libc.so.6
+#1  0x00000000004019d2 in OSPMng (obj=0x61dac0, mtr=0x0) at OSPobj.c:80
+#2  0x0000000000400e25 in OSPwndMng (wnd=0x61dac0, arg=0x0) at OSPwnd.c:84
+#3  0x0000000000401ea8 in OSPAdd (task=ADDSZE, arg=0x0) at OSPobj.c:188
+#4  0x0000000000401798 in main (argc=1, argv=0x7fffffffe0e8) at OSPwnd.c:303
