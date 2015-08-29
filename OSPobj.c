@@ -66,7 +66,11 @@ static void OSPSplit(OSPobj *object) {
 		}
 	}
 	
+	object->_prv->_nxt = object->_nxt;
+	object->_nxt->_prv = object->_prv;
 	object->_mtr->_slv = (object->_nxt == object) ? 0 : object->_nxt;
+//	object->_nxt = 0;
+//	object->_prv = 0;
 	object->_mtr = 0;
 }
 

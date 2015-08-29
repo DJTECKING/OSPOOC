@@ -1,7 +1,28 @@
-Resolve segfault with this back trace :
+Resolve leak :
 
-#0  0x00007ffff7a9e7e8 in main_arena () from /lib/x86_64-linux-gnu/libc.so.6
-#1  0x00000000004019d2 in OSPMng (obj=0x61dac0, mtr=0x0) at OSPobj.c:80
-#2  0x0000000000400e25 in OSPwndMng (wnd=0x61dac0, arg=0x0) at OSPwnd.c:84
-#3  0x0000000000401ea8 in OSPAdd (task=ADDSZE, arg=0x0) at OSPobj.c:188
-#4  0x0000000000401798 in main (argc=1, argv=0x7fffffffe0e8) at OSPwnd.c:303
+==4750== 
+==4750== HEAP SUMMARY:
+==4750==     in use at exit: 126,386 bytes in 50 blocks
+==4750==   total heap usage: 118 allocs, 68 frees, 171,478 bytes allocated
+==4750== 
+==4750== 63,193 (4,680 direct, 58,513 indirect) bytes in 1 blocks are definitely lost in loss record 46 of 47
+==4750==    at 0x4C2CC70: calloc (in /usr/lib/valgrind/vgpreload_memcheck-amd64-linux.so)
+==4750==    by 0x4E6385A: XOpenDisplay (in /usr/lib/x86_64-linux-gnu/libX11.so.6.3.0)
+==4750==    by 0x4013DD: OSPAddWindow (OSPwnd.c:358)
+==4750==    by 0x40174A: main (OSPwnd.c:416)
+==4750== 
+==4750== 63,193 (4,680 direct, 58,513 indirect) bytes in 1 blocks are definitely lost in loss record 47 of 47
+==4750==    at 0x4C2CC70: calloc (in /usr/lib/valgrind/vgpreload_memcheck-amd64-linux.so)
+==4750==    by 0x4E6385A: XOpenDisplay (in /usr/lib/x86_64-linux-gnu/libX11.so.6.3.0)
+==4750==    by 0x4013DD: OSPAddWindow (OSPwnd.c:358)
+==4750==    by 0x401764: main (OSPwnd.c:417)
+==4750== 
+==4750== LEAK SUMMARY:
+==4750==    definitely lost: 9,360 bytes in 2 blocks
+==4750==    indirectly lost: 117,026 bytes in 48 blocks
+==4750==      possibly lost: 0 bytes in 0 blocks
+==4750==    still reachable: 0 bytes in 0 blocks
+==4750==         suppressed: 0 bytes in 0 blocks
+==4750== 
+==4750== For counts of detected and suppressed errors, rerun with: -v
+==4750== ERROR SUMMARY: 2 errors from 2 contexts (suppressed: 0 from 0)
