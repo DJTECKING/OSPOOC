@@ -364,11 +364,6 @@ OSPobj *OSPAddWindow(OSPobj *parent, uint8_t *status, char *displayname) {
 
 		screen = XDefaultScreen(display);
 
-//		winstruct->_connection->_WM_message_type_protocol =
-//			XInternAtom(display, "WM_PROTOCOLS", 1);
-//		winstruct->_connection->_WM_message_delete =
-//			XInternAtom(display, "WM_DELETE_WINDOW", 1);
-
 		winstruct->_depth = 32;
 		if(!XMatchVisualInfo(display, screen, 32, TrueColor, &vinfo)) {
 			winstruct->_depth = 24;
@@ -391,6 +386,13 @@ OSPobj *OSPAddWindow(OSPobj *parent, uint8_t *status, char *displayname) {
 		winstruct->_window = wnd;
 		winstruct->_width = 100;
 		winstruct->_height = 100;
+
+		/* Subscribe to window closing event */
+		winstruct->_connection->_WM_message_type_protocol =
+			XInternAtom(display, "WM_PROTOCOLS", 1);
+		winstruct->_connection->_WM_message_delete =
+			XInternAtom(display, "WM_DELETE_WINDOW", 1);
+		XSetWMProtocols(display, wnd, &winstruct->_connection->_WM_message_type_protocol, 2);
 		
 		XFreeColormap(display, attr.colormap);
 		XSelectInput(display, wnd, ExposureMask | ButtonPressMask | KeyPressMask);
