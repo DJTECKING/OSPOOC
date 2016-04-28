@@ -1,0 +1,41 @@
+#ifndef __OSPDEV_H__
+#define __OSPDEV_H__
+
+/*	OSPobj _obj
+		OSPdev Add file descriptor and all unimplemented methods
+*/
+
+typedef struct {
+	OSPobj _obj;
+	char *_name;
+	int _fd;
+} OSPdev;
+
+#define OSPDEVCONTROL	2
+
+#define OSPDEVSETASYNQ	3
+#define OSPDEVSETSYNQ	4
+
+#define OSPDEVSETSTAT	5
+#define OSPDEVGETSTAT	6
+
+#define OSPDEVLOCK		7
+#define OSPDEVWAITLOCK	8
+#define OSPDEVUNLOCK	9
+
+#define OSPDEVREAD		10
+#define OSPDEVFREAD		11
+#define OSPDEVWRITE		12
+#define OSPDEVFWRITE	13
+
+#define OSPDEVSEEK		14
+#define OSPDEVTRUNCATE	15
+
+#define OSPDEVMAP		16
+#define OSPDEVUNMAP		17
+
+#define OSPDEVMAXOP		18
+
+OSPctr *OSPCtrdev(void);
+
+#endif /* __OSPDEV_H__ */

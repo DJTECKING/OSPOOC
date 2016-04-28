@@ -1,0 +1,30 @@
+#ifndef __OSPSKT_H__
+#define __OSPSKT_H__
+
+/*	OSPobj _obj
+		OSPdev _dev Add file descriptor and all unimplemented methods
+			OSPskt Add socket type, port number, config
+			OSPsrv Is an OSPskt
+			OSPclt Is an OSPskt
+*/
+
+typedef struct {
+	OSPdev _dev;
+	OSPobj *_hdl
+	int _type;
+	/*	TCP => SOCK_STREAM
+		UDP => SOCK_DGRAM */
+	uint16_t _port;
+	uint16_t _status;
+	struct sockaddr_in _conf;
+} OSPskt;
+
+typedef OSPskt OSPsrv;
+typedef OSPskt OSPclt;
+
+#define OSPTCP 0
+#define OSPUDP 1
+
+OSPobj *OSPAddSrv(OSPobj *, uint8_t, int);
+
+#endif /* __OSPSKT_H__ */

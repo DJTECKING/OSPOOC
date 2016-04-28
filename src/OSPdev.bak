@@ -1,0 +1,120 @@
+#include"../include/OSPlib.h"
+
+void OSPDevMng(OSPobj *obj, va_list arg) {
+	OSPobj *mtr;
+	va_list varg;
+	va_copy(varg, arg);
+	mtr = va_arg(arg, OSPobj *);
+	
+	OSPdev *dev = (OSPdev *) (&obj[1]);
+	
+	if(!mtr) {
+		if(dev->_name) {
+			free(dev->_name);
+		}
+		
+		if(dev->_fd >= 0) {
+			close(dev->_fd);
+		}
+	}
+	
+	OSPMng(obj, varg);
+}
+
+void OSPDevControl(OSPobj *obj, va_list arg) {
+	OSPVerbose("OSPDevControl is not implemented on this device\n");
+}
+
+void OSPDevSetASynq(OSPobj *obj, va_list arg) {
+	OSPVerbose("OSPDevSetASynq is not implemented on this device\n");
+}
+
+void OSPDevSetSynq(OSPobj *obj, va_list arg) {
+	OSPVerbose("OSPDevSetSynq is not implemented on this device\n");
+}
+
+void OSPDevSetStat(OSPobj *obj, va_list arg) {
+	OSPVerbose("OSPDevSetStat is not implemented on this device\n");
+}
+
+void OSPDevGetStat(OSPobj *obj, va_list arg) {
+	OSPVerbose("OSPDevGetStat is not implemented on this device\n");
+}
+
+void OSPDevLock(OSPobj *obj, va_list arg) {
+	OSPVerbose("OSPDevLock is not implemented on this device\n");
+}
+
+void OSPDevWaitLock(OSPobj *obj, va_list arg) {
+	OSPVerbose("OSPDevWaitLock is not implemented on this device\n");
+}
+
+void OSPDevUnLock(OSPobj *obj, va_list arg) {
+	OSPVerbose("OSPDevUnLock is not implemented on this device\n");
+}
+
+void OSPDevRead(OSPobj *obj, va_list arg) {
+	OSPVerbose("OSPDevRead is not implemented on this device\n");
+}
+
+void OSPDevFRead(OSPobj *obj, va_list arg) {
+	OSPVerbose("OSPDevFRead is not implemented on this device\n");
+}
+
+void OSPDevWrite(OSPobj *obj, va_list arg) {
+	OSPVerbose("OSPDevWrite is not implemented on this device\n");
+}
+
+void OSPDevFWrite(OSPobj *obj, va_list arg) {
+	OSPVerbose("OSPDevFWrite is not implemented on this device\n");
+}
+
+void OSPDevSeek(OSPobj *obj, va_list arg) {
+	OSPVerbose("OSPDevSeek is not implemented on this device\n");
+}
+
+void OSPDevTrunc(OSPobj *obj, va_list arg) {
+	OSPVerbose("OSPDevTrunc is not implemented on this device\n");
+}
+
+void OSPDevMap(OSPobj *obj, va_list arg) {
+	OSPVerbose("OSPDevMap is not implemented on this device\n");
+}
+
+void OSPDevUnMap(OSPobj *obj, va_list arg) {
+	OSPVerbose("OSPDevUnMap is not implemented on this device\n");
+}
+
+
+OSPctr *OSPCtrdev() {
+	static OSPctr *ctr = 0;
+	
+	if(!ctr) {
+		ctr = OSPCtr(0, OSPDEVMAXOP, sizeof(OSPdev), 0);
+		ctr->_fct[OSPMNG] = OSPDevMng;
+		
+		ctr->_fct[OSPDEVCONTROL] = OSPDevControl;
+		
+		ctr->_fct[OSPDEVSETASYNQ] = OSPDevSetASynq;
+		ctr->_fct[OSPDEVSETSYNQ] = OSPDevSetSynq;
+		
+		ctr->_fct[OSPDEVSETSTAT] = OSPDevSetStat;
+		ctr->_fct[OSPDEVGETSTAT] = OSPDevGetStat;
+		
+		ctr->_fct[OSPDEVLOCK] = OSPDevLock;
+		ctr->_fct[OSPDEVWAITLOCK] = OSPDevWaitLock;
+		ctr->_fct[OSPDEVUNLOCK] = OSPDevUnLock;
+		
+		ctr->_fct[OSPDEVREAD] = OSPDevRead;
+		ctr->_fct[OSPDEVFREAD] = OSPDevFRead;
+		ctr->_fct[OSPDEVWRITE] = OSPDevWrite;
+		ctr->_fct[OSPDEVFWRITE] = OSPDevFWrite;
+		ctr->_fct[OSPDEVSEEK] = OSPDevSeek;
+		ctr->_fct[OSPDEVTRUNCATE] = OSPDevTrunc;
+		ctr->_fct[OSPDEVMAP] = OSPDevMap;
+		ctr->_fct[OSPDEVUNMAP] = OSPDevUnMap;
+	}
+	
+	return ctr;
+}
+

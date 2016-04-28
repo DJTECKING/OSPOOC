@@ -1,0 +1,220 @@
+#include"../include/OSPlib.h"
+
+void OSPSrvLock(OSPobj *obj, va_list arg) {
+	OSPsrv *srv = (OSPsrv *) obj;
+	OSPVerbose("OSPSrvLock\n");
+	
+	if(srv->_status) {
+		srv->_status--;
+		
+		if(!srv->_status) {
+			shutdown(srv->_dev._fd, SHUT_RDWR); /* Avoid time wait */
+			close(srv->_dev._fd);
+			
+			srv->_dev._fd = -1;
+		}
+	}
+}
+
+void OSPSrvUnLock(OSPobj *obj, va_list arg) {
+	OSPsrv *srv = (OSPsrv *) obj;
+	OSPVerbose("OSPSrvUnlock\n");
+	
+	if(srv->_dev.fd < 0) {
+		/* TODO ouverture serveur sur srv->_dev.fd */
+		srv->_status++;
+		return;
+	}
+	
+	if(srv->_status) {
+		srv->_status++;
+	}
+}
+
+static OSPctr *OSPCtrSrv() {
+	static OSPctr *ctr = 0;
+	
+	if(!ctr) {
+		ctr = OSPCtr(OSPCtrdev(), OSPDEVMAXOP, sizeof(OSPdev), OSPHdlClt);
+/*		ctr->_fct[OSPMNG] = OSPDevMng;
+		
+		ctr->_fct[OSPDEVCONTROL] = OSPDevControl;
+		
+		ctr->_fct[OSPDEVSETASYNQ] = OSPDevSetASynq;
+		ctr->_fct[OSPDEVSETSYNQ] = OSPDevSetSynq;
+		
+		ctr->_fct[OSPDEVSETSTAT] = OSPDevSetStat;
+		ctr->_fct[OSPDEVGETSTAT] = OSPDevGetStat;
+		
+		ctr->_fct[OSPDEVLOCK] = OSPDevLock; Used here to lock the server if too much client, decrease _status
+		ctr->_fct[OSPDEVWAITLOCK] = OSPDevWaitLock;
+		ctr->_fct[OSPDEVUNLOCK] = OSPDevUnLock; Used here to unlock the server if locked, increase _status
+		
+		ctr->_fct[OSPDEVREAD] = OSPDevRead;
+		ctr->_fct[OSPDEVFREAD] = OSPDevFRead;
+		ctr->_fct[OSPDEVWRITE] = OSPDevWrite;
+		ctr->_fct[OSPDEVFWRITE] = OSPDevFWrite;
+		ctr->_fct[OSPDEVSEEK] = OSPDevSeek;
+		ctr->_fct[OSPDEVTRUNCATE] = OSPDevTrunc;
+		ctr->_fct[OSPDEVMAP] = OSPDevMap;
+		ctr->_fct[OSPDEVUNMAP] = OSPDevUnMap; */
+	}
+	
+	return ctr;
+}
+
+static OSPctr *OSPCtrClt() {
+	static OSPctr *ctr = 0;
+	
+	if(!ctr) {
+		ctr = OSPCtr(OSPCtrdev(), OSPDEVMAXOP, sizeof(OSPdev), OSPHdlClt);
+/*		ctr->_fct[OSPMNG] = OSPDevMng;
+		
+		ctr->_fct[OSPDEVCONTROL] = OSPDevControl;
+		
+		ctr->_fct[OSPDEVSETASYNQ] = OSPDevSetASynq;
+		ctr->_fct[OSPDEVSETSYNQ] = OSPDevSetSynq;
+		
+		ctr->_fct[OSPDEVSETSTAT] = OSPDevSetStat;
+		ctr->_fct[OSPDEVGETSTAT] = OSPDevGetStat;
+		
+		ctr->_fct[OSPDEVLOCK] = OSPDevLock;
+		ctr->_fct[OSPDEVWAITLOCK] = OSPDevWaitLock;
+		ctr->_fct[OSPDEVUNLOCK] = OSPDevUnLock;
+		
+		ctr->_fct[OSPDEVREAD] = OSPDevRead;
+		ctr->_fct[OSPDEVFREAD] = OSPDevFRead;
+		ctr->_fct[OSPDEVWRITE] = OSPDevWrite;
+		ctr->_fct[OSPDEVFWRITE] = OSPDevFWrite;
+		ctr->_fct[OSPDEVSEEK] = OSPDevSeek;
+		ctr->_fct[OSPDEVTRUNCATE] = OSPDevTrunc;
+		ctr->_fct[OSPDEVMAP] = OSPDevMap;
+		ctr->_fct[OSPDEVUNMAP] = OSPDevUnMap; */
+	}
+	
+	return ctr;
+}
+
+/* Handle socket interruptions :
+	Destroys itself if hang up (connection closed by host)
+	Returns what handler object defined to return
+	Returns itself if handler object returns nothing or no handler object defined
+*/
+uint8_t OSPHdlClt(OSPobj *obj, OSPobj **who) {
+	uint8_t ret = 0;
+	OSPclt *clt = (OSPclt *) obj;
+	
+	*who = obj;
+	
+	if(!recv(clt->_dev._fd, &ret, 1, MSG_PEEK)) {
+		/* Connection closed, notify it in the status */
+		clt->_status = 0;
+	}
+
+	if(clt->_hdl) {
+		/* If !clt->_status, clt->_hdl->_ctr._hdl() must make sure
+		nothing will reference this socket anymore
+		because socket is being destroyed /!\ */
+		ret = clt->_hdl->_ctr._hdl(clt->_hdl, who);
+	}
+	
+	if(!clt->_status) {
+		/* Connection closed, be sure that if parent is a server, freeing a place */
+		if(obj->_mtr->_ctr == OSPCtrSrv()) {
+			OSPRun(obj->_mtr, OSPDEVUNLOCK);
+		}
+		/* shutdown(clt->_dev._fd, SHUT_RDWR); /* Avoid time wait */
+		OSPDEL(obj);
+		return 1;
+	}
+	
+	return ret;
+}
+
+/* Add a client socket :
+	type is either SOCK_STREAM for a TCP connection
+	or SOCK_DGRAM for an UDP connection
+	addr must be a string in the form CCC.CCC.CCC.CCC:PPPPP
+	where CCC must be a value between 0 and 255 included
+	and PPPPP must be a value between 0 and 65535 included
+	It represent the adresse and the port of the host to connect with
+*/
+OSPobj *OSPAddClt(OSPobj *mtr, int type, const char *addr) {
+	OSPclt *ret = (OSPclt *) OSPAdd(mtr, OSPCtrClt());
+	struct sockaddr_in servaddr;
+
+	ret->_type = type;
+	ret->_dev._fd = -1;
+	ret->_status = 1;
+	
+	if(addr) {
+		uint8_t *portstart = strchr(addr, ':');
+		uint8_t *portend;
+		uint16_t port;
+		
+		if(!portstart[0]) {
+			OSPDEL((OSPobj *) ret);
+			return 0;
+		}
+		*(portstart++) = 0;
+		port = strtol(portstart, portend, 0);
+		
+		if(portstart == portend) {
+			OSPDEL((OSPobj *) ret);
+			return 0;
+		}
+		
+		if((ret->_dev._fd = socket(AF_INET, ret->_type, 0)) < 0) {
+			OSPDEL((OSPobj *) ret);
+			return 0;
+		}
+		
+		ret->_conf.sin_family = AF_INET;
+		if(!inet_aton(addr, &ret->_conf.sin_addr.s_addr) {
+			OSPDEL((OSPobj *) ret);
+			return 0;
+		}
+		ret->_conf.sin_port = htons(port);
+		
+		if(connect(sockfd,(struct sockaddr *) &servaddr,sizeof(sockaddr_in)) < 0) {
+			OSPDEL((OSPobj *) ret);
+			return 0;
+		}
+	}
+	
+	return ret;
+}
+
+uint8_t OSPHdlSrv(OSPobj *obj, OSPobj **who) {
+	OSPsrv *srv = (OSPsrv *) obj;
+	OSPclt *clt = OSPAddClt(obj, srv->_type, 0);
+
+	if((clt->_dev._fd = accept(srv->_dev._fd,
+							(struct sockaddr *) srv->_conf,
+							sizeof(struct sockaddr))) < 0) {
+		OSPDEL((OSPobj *) clt);
+		
+		*who = obj;
+		
+		return 0;
+	}
+	
+	*who = clt;
+	
+	OSPRun(obj, OSPDEVLOCK);
+	
+	clt->_port = srv->_port;
+}
+
+OSPsrv *OSPAddSrv(OSPobj *mtr, uint8_t type, int port) {
+	OSPobj *obj = OSPAdd(mtr, OSPCtrSrv());
+	OSPRun(obj, OSPDEVUNLOCK);
+	
+	return obj;
+}
+
+int main(int argc, char *argv[]) {
+	
+	OSPFREEALL;
+	return 0;
+}
