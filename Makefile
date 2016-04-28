@@ -9,6 +9,9 @@ SOURCES	= $(shell echo src/*.c)
 HEADERS	= $(shell echo include/*.h)
 OBJECTS	= $(SOURCES:.c=.o)
 
+# CURLIBPATH = $(PWD)/lib
+# LDLIBPATH = $(shell echo $(LD_LIBRARY_PATH) | grep $(CURLIBPATH))
+
 all: $(TARGET)
 
 $(TARGET): $(OBJECTS)
@@ -18,7 +21,6 @@ $(TARGET): $(OBJECTS)
 	$(CC) $(IFLAGS) $(CFLAGS) -o $@ $<
 
 demo: $(TARGET) demo/windows.c
-	# Make sure 
 	$(CC) $(IFLAGS) -o bin/windows demo/windows.c $(DFLAGS)
 
 clean:
