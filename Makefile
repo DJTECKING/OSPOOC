@@ -1,7 +1,7 @@
 CC		= gcc
 IFLAGS	= -Iinclude
 CFLAGS	= -std=c99 -fPIC -pedantic -Wall -Wextra -c # -march=native -ggdb3
-LFLAGS	= -shared -lX11 # -march=native -ggdb3
+LFLAGS	= -shared -lX11 -lXext # -march=native -ggdb3
 DFLAGS	= -L./lib -lOSPOOC
 
 TARGET	= lib/libOSPOOC.so

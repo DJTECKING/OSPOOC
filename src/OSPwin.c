@@ -84,6 +84,15 @@ OSPdisplay *OSPDpyOf(OSPwindow *wnd) {
 
 OSPdisplay *OSPDpy(char *dpyname) {
 	OSPdisplay *ret = (OSPdisplay *) OSPAdd(OSPDpyCtr());
+	Drawable rtwnd;
+	XdbeScreenVisualInfo *vfolst;
+	XVisualInfo *vfomtc;
+	int idx;
+	int noret;
+	int perf24 = -1;
+	int perf = -1;
+	int vfoidx24 = -1;
+	int vfoidx = -1;
 
 	if(!(ret->_dpy = XOpenDisplay(dpyname))) {
 		/* Display not found */
@@ -92,21 +101,79 @@ OSPdisplay *OSPDpy(char *dpyname) {
 		return 0;
 	}
 
-	ret->_scn = XDefaultScreen(ret->_dpy);
-	
+	noret = ret->_scn = XDefaultScreen(ret->_dpy);
+	rtwnd = DefaultRootWindow(ret->_dpy);
+
+	vfolst = XdbeGetVisualInfo(ret->_dpy, &rtwnd, &noret);
+
+	if (!vfolst || (noret < 1) || (vfolst->count < 1)) {
+		OSPrint(0, "OSPdisplay : Double buffer unable");
+		if(vfolst) XdbeFreeVisualInfo(vfolst);
+		OSPFre(&ret->_obj);
+		return 0;
+	}
+
+	for(idx = 0; idx < noret; idx++) {
+		switch(vfolst->visinfo[idx].depth) {
+			case 24:
+				vfoidx24 = idx;
+				perf24 = vfolst->visinfo[idx].perflevel > perf24 ?
+						vfolst->visinfo[idx].perflevel : perf24;
+				break;
+			case 32:
+				vfoidx = idx;
+				perf = vfolst->visinfo[idx].perflevel > perf ?
+						vfolst->visinfo[idx].perflevel : perf;
+			default:;
+		}
+	}
+
+	if(vfoidx == -1) {
+		if(vfoidx24 == -1) {
+			OSPrint(0, "OSPdisplay : Screen not compatible with 32 or 24 bits depth");
+			XdbeFreeVisualInfo(vfolst);
+			OSPFre(&ret->_obj);
+			return 0;
+		}
+
+		OSPrint(1, "OSPdisplay : 32 bits depth available, using 24 bits depth");
+		vfoidx = vfoidx24;
+	}
+
+    ret->_vfo.visualid = vfolst->visinfo[vfoidx].visual;
+	ret->_vfo.screen = ret->_scn; 
+    ret->_vfo.depth = vfolst->visinfo[vfoidx].depth;
+
+	XdbeFreeVisualInfo(vfolst);
+
+    vfomtc = XGetVisualInfo(ret->_dpy, VisualIDMask | VisualScreenMask | VisualDepthMask,
+							&ret->_vfo, &noret);
+
+	if(!vfomtc || (noret < 1)) {
+		OSPrint(0, "OSPdisplay : Double buffer visual not mached");
+		OSPFre(&ret->_obj);
+		return 0;
+	}
+
+	memcpy(&ret->_vfo, vfomtc, sizeof(XVisualInfo));
+
+	for(idx = 0; idx < noret; idx++) {
+		XFree(&vfomtc[idx]);
+	}
+
+/*
 	if(!XMatchVisualInfo(ret->_dpy, ret->_scn, 32, TrueColor, &ret->_vfo)) {
 		OSPrint(1, "OSPdisplay : 32 bits color not alloed");
 		if(!XMatchVisualInfo(ret->_dpy, ret->_scn, 24, TrueColor, &ret->_vfo)) {
-			/* No proper color depth available */
-			OSPrint(0, "OSPdisplay : Screen not compatible with 32 or 24 bits true color");
+*/			/* No proper color depth available */
+/*			OSPrint(0, "OSPdisplay : Screen not compatible with 32 or 24 bits true color");
 			OSPFre(&ret->_obj);
 			return 0;
 		}
 	}
+*/
 
-	ret->_atr.colormap = XCreateColormap(ret->_dpy,
-									DefaultRootWindow(ret->_dpy),
-									ret->_vfo.visual, AllocNone);
+	ret->_atr.colormap = XCreateColormap(ret->_dpy, rtwnd, ret->_vfo.visual, AllocNone);
 	ret->_atr.border_pixel = 0;
 	ret->_atr.event_mask =	KeyPressMask | /* Keyboard down events wanted */
 							KeyReleaseMask | /* Keyboard up events wanted */
@@ -160,6 +227,7 @@ void OSPWndHdl(OSPobj **obj) {
 	if(wnd->_prv) wnd->_prv->_nxt = wnd->_nxt;
 	while(wnd->_slv) OSPFre(&wnd->_slv->_obj);
 
+	XdbeDeallocateBackBufferName(wnd->_dpy->_dpy, wnd->_bbf);
 	XUnmapWindow(wnd->_dpy->_dpy, wnd->_wnd);
 	XDestroyWindow(wnd->_dpy->_dpy, wnd->_wnd);
 	XFlush(wnd->_dpy->_dpy);
@@ -280,6 +348,7 @@ void OSPwnd_event(OSPobj *obj, va_list arg) {
 			break;
 
 		case Expose:
+/*			OSPRun(&wnd->_obj, OSPWND_SWAP); Very bad idea */
 			OSPrint(1, "OSPwnd_event : Window %d on connection %d "
 						"got exposed", wnd->_wnd,
 						XConnectionNumber(wnd->_dpy->_dpy));
@@ -311,6 +380,8 @@ void OSPwnd_event(OSPobj *obj, va_list arg) {
 						"on window %d on connection %d",
 						wnd->_wnd, XConnectionNumber(wnd->_dpy->_dpy));
 	}
+
+	XFlush(wnd->_dpy->_dpy);
 }
 
 void OSPwnd_getkey(OSPobj *obj, va_list arg) {
@@ -342,15 +413,37 @@ void OSPwnd_getbtn(OSPobj *obj, va_list arg) {
 				wnd->_wnd, XConnectionNumber(wnd->_dpy->_dpy));
 }
 
+void OSPwnd_swap(OSPobj *obj, va_list arg) {
+	OSPwindow *wnd = (OSPwindow *) obj;
+	XdbeSwapInfo swpifo;
+
+	swpifo.swap_window = wnd->_wnd;
+	swpifo.swap_action = XdbeUndefined;
+
+	// XdbeSwapBuffers returns true on success, we return 0 on success.
+	if(XdbeSwapBuffers(wnd->_dpy->_dpy, &swpifo, 1)) {
+		OSPrint(1, "OSPwnd_swap : Window %d swapped "
+					"on connection %d",
+					wnd->_wnd, XConnectionNumber(wnd->_dpy->_dpy));
+		XFlush(wnd->_dpy->_dpy);
+	}
+	else {
+		OSPrint(1, "OSPwnd_swap : Unable to swap window %d "
+					"on connection %d",
+					wnd->_wnd, XConnectionNumber(wnd->_dpy->_dpy));
+	}
+}
+
 OSPctr *OSPWndCtr() {
 	static OSPctr *ret = 0;
 
 	if(ret) return ret;
-	ret = OSPCtr(0, 3, sizeof(OSPwindow), OSPWndHdl);
+	ret = OSPCtr(0, 4, sizeof(OSPwindow), OSPWndHdl);
 
 	ret->_fct[OSPWND_EVENT] = OSPwnd_event;
 	ret->_fct[OSPWND_GETKEY] = OSPwnd_getkey;
 	ret->_fct[OSPWND_GETBTN] = OSPwnd_getbtn;
+	ret->_fct[OSPWND_SWAP] = OSPwnd_swap;
 
 	return ret;
 }
@@ -390,6 +483,8 @@ OSPwindow *OSPWnd(OSPobj *master, char *wndname, int x, int y,
 								dpy->_vfo.visual, CWColormap |
 								CWBorderPixel | CWBackPixel |
 								CWEventMask, &dpy->_atr);
+
+	ret->_bbf = XdbeAllocateBackBufferName(dpy->_dpy, ret->_wnd, XdbeUndefined);
 
 	if(mtr->_obj._fct == OSPDpyCtr()->_fct) {
 		/* Initialize window */
