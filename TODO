@@ -1,1 +1,2 @@
-Add double buffer functions
+Use pkg-config --variable pc_path pkg-config to know where are stored .pc files.
+Debug not processed closing events since double buffering is working.
