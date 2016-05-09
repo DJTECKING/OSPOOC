@@ -13,7 +13,6 @@
 #include<X11/Xlib.h>
 #include<X11/Xutil.h>			/* For visual informations */
 #include<X11/keysym.h>			/* For ??? */
-#include<X11/extensions/Xdbe.h>
 #include<GL/gl.h>
 #include<GL/glx.h>
 #include<GL/glxext.h>			/* For ??? */

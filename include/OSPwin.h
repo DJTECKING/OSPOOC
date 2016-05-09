@@ -6,7 +6,6 @@
 #define OSPWND_EVENT	0
 #define OSPWND_GETKEY	1
 #define OSPWND_GETBTN	2
-#define OSPWND_SWAP		3
 
 struct OSPwindow_s;
 
@@ -38,7 +37,6 @@ typedef struct OSPwindow_s {
 
 	OSPdisplay *_dpy;
 	Window _wnd;
-	XdbeBackBuffer _bbf;
 	GC _gc;
 	int _x;
 	int _y;

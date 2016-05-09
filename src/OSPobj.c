@@ -270,6 +270,7 @@ OSPobj *OSPAdd(OSPctr *ctr) {
 				ret = (OSPobj *) element;
 				ret->_buf = buf;
 				ret->_fct = ctr->_fct;
+
 				buf->_fre[(cnt >> 7) + 1] &= ~(1 << no);
 
 				return ret;
@@ -277,10 +278,14 @@ OSPobj *OSPAdd(OSPctr *ctr) {
 
 			element += ctr->_dsz;
 		}
+
+		nxt->_fre[0] &= ~1;
 	}
 
 	/* No free pool, creating a new one, twice the size of the precedent if exist */
 	ctr->_buf = OSPBuf(ctr, buf ? ctr->_buf->_fre[0] : OSProot._defbufsize);
+	ctr->_buf->_fre[1] &= ~1;
+
 	ret = (OSPobj *) OSPGetBuffer(ctr->_buf);
 	ret->_buf = ctr->_buf;
 	ret->_fct = ctr->_fct;

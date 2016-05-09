@@ -1,13 +1,13 @@
 CC		= gcc
 IFLAGS	= -Iinclude
-CFLAGS	= -std=c99 -fPIC -pedantic -Wall -Wextra -c # -march=native -ggdb3
-LFLAGS	= -shared -lX11 -lXext # -march=native -ggdb3
+CFLAGS	= -std=c99 -fPIC -pedantic -Wall -Wextra -c# -march=native -ggdb3
+LFLAGS	= -shared -lX11# -march=native -ggdb3
 DFLAGS	= -L./lib -lOSPOOC
 
 TARGET	= lib/libOSPOOC.so
 SOURCES	= $(shell echo src/*.c)
 HEADERS	= $(shell echo include/*.h)
-OBJECTS	= $(SOURCES:.c=.o)
+OBJECTS	= $(patsubst %.c,%.o, $(SOURCES))
 
 # CURLIBPATH = $(PWD)/lib
 # LDLIBPATH = $(shell echo $(LD_LIBRARY_PATH) | grep $(CURLIBPATH))
@@ -17,7 +17,7 @@ all: $(TARGET)
 $(TARGET): $(OBJECTS)
 	$(CC) $(LFLAGS) -o $(TARGET) $(OBJECTS)
 
-*.o: *.c
+%.o: %.c
 	$(CC) $(IFLAGS) $(CFLAGS) -o $@ $<
 
 demo: $(TARGET) demo/windows.c
