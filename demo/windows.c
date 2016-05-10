@@ -6,6 +6,7 @@ int main(int argc, char *argv[]) {
 	int run = 1;
 
 	OSPWnd(&dpy->_obj, "OSPOOC Demo", 0, 0, 640, 480, 0x0000FF00);
+	OSPWnd(&dpy->_obj, "OSPOOC Demo2", 0, 0, 640, 480, 0x000000FF);
 
 	while(run) {
 		int timestat = 37;
