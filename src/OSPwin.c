@@ -211,7 +211,7 @@ OSPdisplay *OSPDpy(char *dpyname) {
 	ret->_WMm[0] = XInternAtom(ret->_dpy, "WM_PROTOCOLS", 1);
 	ret->_WMm[1] = XInternAtom(ret->_dpy, "WM_DELETE_WINDOW", 1);
 
-	XFlush(ret->_dpy);
+/*	XFlush(ret->_dpy); Needed? */
 
 	ret->_slv = 0;
 
@@ -436,7 +436,7 @@ void OSPwnd_swap(OSPobj *obj, va_list arg) {
 		OSPrint(1, "OSPwnd_swap : Window %d swapped "
 					"on connection %d",
 					wnd->_wnd, XConnectionNumber(wnd->_dpy->_dpy));
-		XFlush(wnd->_dpy->_dpy);
+/*		XFlush(wnd->_dpy->_dpy); */
 	}
 	else {
 		OSPrint(1, "OSPwnd_swap : Unable to swap window %d "
@@ -536,8 +536,81 @@ OSPwindow *OSPWnd(OSPobj *master, char *wndname, int x, int y,
 	while(mtr->_slv->_prv) mtr->_slv = mtr->_slv->_prv;
 
 	XMapWindow(dpy->_dpy, ret->_wnd);
-	XFlush(dpy->_dpy);
+/*	XFlush(dpy->_dpy); Needed? */
 
 	return ret;
 }
+
+void OSPImgHdl(OSPobj **obj) {
+	OSPimage *img = (OSPimage *) obj[0];
+
+/*	free(img->_img->data); Notice that neither XCreateImage
+							nor XInitImage allocate datas
+							while XDestroyImage frees it */
+	XDestroyImage(img->_img);
+/*	XFlush(wnd->_dpy->_dpy); Needed? */
+}
+
+void OSPimg_getdata(OSPobj *obj, va_list arg) {
+	OSPimage *img = (OSPimage *) obj;
+	uint32_t ***ret = va_arg(arg, uint32_t ***);
+
+	ret[0] = img->_data;
+}
+
+OSPctr *OSPImgCtr() {
+	static OSPctr *ret = 0;
+
+	if(ret) return ret;
+	ret = OSPCtr(0, 1, sizeof(OSPimage), OSPImgHdl);
+
+	ret->_fct[OSPIMG_GETDATA] = OSPimg_getdata;
+
+	return ret;
+}
+
+OSPimage *OSPImg(OSPdisplay *dpy, int width, int height) {
+	OSPimage *ret = (OSPimage *) OSPAdd(OSPImgCtr());
+	char *datptr;
+	int x;
+
+	ret->_img = XCreateImage(dpy->_dpy, dpy->_vfo.visual, dpy->_vfo.depth,
+							ZPixmap, 0, 0, width, height, 32, 0);
+	XInitImage(ret->_img);
+
+	ret->_data = (uint32_t **) malloc(width * sizeof(void *));
+	ret->_img->data = malloc(width * ret->_img->bytes_per_line);
+	datptr = ret->_img->data;
+
+	for(x = 0; x < width; x++) {
+		ret->_data[x] = (uint32_t *) datptr;
+		datptr += ret->_img->bytes_per_line;
+	}
+
+	return ret;
+}
+
+void OSPImgBlit(OSPobj *orig, OSPobj *dest, int x_orig, int y_orig,
+			int x_dest, int y_dest, unsigned int width, unsigned int height) {
+	OSPimage *orig_as_image = (OSPimage *) orig;
+	OSPwindow *orig_as_window = (OSPwindow *) orig;
+	OSPimage *dest_as_image = (OSPimage *) dest;
+	OSPwindow *dest_as_window = (OSPwindow *) dest;
+
+	enum {
+		image_to_image = 0,
+		image_to_window = 1,
+		window_to_image = 2,
+		window_to_window = 3
+	} mode = image_to_window;
+
+	switch(mode) {
+		case image_to_window:
+			XPutImage(dest_as_window->_dpy->_dpy, dest_as_window->_bbf,
+						dest_as_window->_gc, orig_as_image->_img,
+						x_orig, y_orig, x_dest, y_dest, width, height);
+		default:;
+	}
+}
+
 

@@ -8,6 +8,8 @@
 #define OSPWND_GETBTN	2
 #define OSPWND_SWAP		3
 
+#define OSPIMG_GETDATA	0
+
 struct OSPwindow_s;
 
 typedef struct OSPdisplay_s {
@@ -51,17 +53,23 @@ typedef struct OSPwindow_s {
 
 typedef struct OSPimage_s {
 	OSPobj _obj;
-	Display *_dpy;
+
 	XImage *_img;
-	int _w;
-	int _h;
-	uint32_t _data[];
+
+	uint32_t **_data;
 } OSPimage;
 
 OSPctr *OSPDpyCtr();
 OSPdisplay *OSPDpyOf(OSPwindow *wnd);
 OSPdisplay *OSPDpy(char *dpyname);
+
 OSPctr *OSPWndCtr();
 OSPwindow *OSPWnd(OSPobj *, char *, int, int, int, int, uint32_t);
+
+OSPctr *OSPImgCtr();
+OSPimage *OSPImg(OSPdisplay *, int, int);
+
+
+void OSPImgBlit(OSPobj *, OSPobj *, int, int, int, int, unsigned int, unsigned int);
 
 #endif /* __OSPWIN_H__ */

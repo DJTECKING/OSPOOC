@@ -13,6 +13,7 @@ OBJECTS	= $(patsubst %.c,%.o, $(SOURCES))
 # LDLIBPATH = $(shell echo $(LD_LIBRARY_PATH) | grep $(CURLIBPATH))
 
 all: $(TARGET)
+	echo allo
 
 $(TARGET): $(OBJECTS)
 	$(CC) $(LFLAGS) -o $(TARGET) $(OBJECTS)

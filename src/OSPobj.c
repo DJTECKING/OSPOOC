@@ -149,8 +149,9 @@ void OSPFreeBuf(OSPbuf *buf) {
 			}
 
 			for(flag = 0; flag < 64; flag++) {
-				if(buf->_fre[no + 1] & (1 << flag)) {
+				if(!(buf->_fre[no + 1] & (1 << flag))) {
 					OSPobj *obj = (OSPobj *) element;
+
 					obj->_buf = 0;
 					buf->_ctr->_hdl(&obj);
 				}
@@ -160,14 +161,11 @@ void OSPFreeBuf(OSPbuf *buf) {
 		}
 
 		for(no = 0; no < ((cnt & 0x7E) >> 1); no++) {
-			if(buf->_fre[(cnt >> 7) + 1] & (1 << no)) {
+			if(!(buf->_fre[(cnt >> 7) + 1] & (1 << no))) {
 				OSPobj *obj = (OSPobj *) element;
 
-				if(obj->_buf) {
+					obj->_buf = 0;
 					buf->_ctr->_hdl(&obj);
-				}
-
-				obj->_buf = 0;
 			}
 
 			element += buf->_ctr->_dsz;
