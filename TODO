@@ -4,3 +4,4 @@ Resolve tearing effects
 Resolve segfault, BadDrawable on X_PutImage or
 	not working close button on closing window
 Resolve partial XPutImage
+Add Image copy manipulation in OSPwin.c:OSPImgBlit
