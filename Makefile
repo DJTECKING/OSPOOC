@@ -1,4 +1,4 @@
-CC		= gcc
+CC		= gcc -g
 IFLAGS	= -Iinclude
 CFLAGS	= -std=c99 -fPIC -pedantic -Wall -Wextra -c# -march=native -ggdb3
 LFLAGS	= -shared -lX11 -lXext# -march=native -ggdb3

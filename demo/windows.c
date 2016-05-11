@@ -14,7 +14,7 @@ int main(int argc, char *argv[]) {
 	OSPimage *img = OSPImg(dpy, 640, 480);
 
 	while(run) {
-		int timestat = 16;
+		int timestat = 10;
 		trig = OSPWte(&timestat);
 
 		if(timestat) {
@@ -23,12 +23,13 @@ int main(int argc, char *argv[]) {
 			}
 		}
 		else{
-			offset += 9;
+			offset += 30;
 
 			for(y = 0; y < 480; y++) {
 				for(x = 0; x < 640; x++) {
 					uint8_t val = x + y + offset;
-					img->_data[x][y] = val | (val << 8) | (val << 16);
+					uint8_t tpr = x - y + offset;
+					img->_data[y][x] = val | (val << 8) | (val << 16) | (tpr << 24);
 				}
 			}
 

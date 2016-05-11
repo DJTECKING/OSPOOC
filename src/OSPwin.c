@@ -8,6 +8,8 @@ void OSPDpyHdl(OSPobj **obj) {
 
 	/* Screen is about to be destroyed */
 	if(!obj[0]->_buf) {
+		int dpyfd = ConnectionNumber(dpy->_dpy);
+
 		while(dpy->_slv) {
 			OSPFre(&dpy->_slv->_obj);
 		}
@@ -17,7 +19,7 @@ void OSPDpyHdl(OSPobj **obj) {
 			XCloseDisplay(dpy->_dpy);
 		}
 
-		OSPTrg(0 , ConnectionNumber(dpy->_dpy), 0);
+		OSPTrg(0, dpyfd, 0);
 
 		return;
 	}
@@ -58,7 +60,9 @@ void OSPDpyHdl(OSPobj **obj) {
 					if(((unsigned long) dpy->_lst.xclient.data.l[0]) == dpy->_WMm[1]) {
 						if(dpy->_slv) {
 							if(!dpy->_slv->_nxt) {
-								OSPFre(obj[0]);
+								OSPFre(&dpy->_obj);
+								obj[0] = &dpy->_obj;
+								eventnb = 0;
 							}
 							else {
 								OSPRun(&dpy->_slv->_obj, OSPWND_EVENT, obj);
@@ -66,6 +70,7 @@ void OSPDpyHdl(OSPobj **obj) {
 						}
 					}
 				}
+
 				break;
 
 			default:
@@ -234,6 +239,7 @@ void OSPWndHdl(OSPobj **obj) {
 	while(wnd->_slv) OSPFre(&wnd->_slv->_obj);
 
 	XdbeDeallocateBackBufferName(wnd->_dpy->_dpy, wnd->_bbf);
+	XFreeGC(wnd->_dpy->_dpy, wnd->_gc);
 	XUnmapWindow(wnd->_dpy->_dpy, wnd->_wnd);
 	XDestroyWindow(wnd->_dpy->_dpy, wnd->_wnd);
 	XFlush(wnd->_dpy->_dpy);
@@ -331,8 +337,7 @@ void OSPwnd_event(OSPobj *obj, va_list arg) {
 
 			OSPrint(1, "OSPwnd_event : Pointer moved out "
 						"of window %d on connection %d",
-						wnd->_msx, wnd->_msy, wnd->_wnd,
-						XConnectionNumber(wnd->_dpy->_dpy));
+						wnd->_wnd, XConnectionNumber(wnd->_dpy->_dpy));
 			break;
 
 		case ClientMessage:
@@ -547,6 +552,7 @@ void OSPImgHdl(OSPobj **obj) {
 /*	free(img->_img->data); Notice that neither XCreateImage
 							nor XInitImage allocate datas
 							while XDestroyImage frees it */
+	free(img->_data);
 	XDestroyImage(img->_img);
 /*	XFlush(wnd->_dpy->_dpy); Needed? */
 }
