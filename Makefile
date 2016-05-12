@@ -1,7 +1,7 @@
 CC		= gcc -g
 IFLAGS	= -Iinclude
-CFLAGS	= -std=c99 -fPIC -pedantic -Wall -Wextra -c# -march=native -ggdb3
-LFLAGS	= -shared -lX11 -lXext# -march=native -ggdb3
+CFLAGS	= -std=c99 -fPIC -pedantic -Wall -Wextra -c -D_XOPEN_SOURCE# -march=native -ggdb3
+LFLAGS	= -shared -lX11 -lXext -lm -D_XOPEN_SOURCE# -march=native -ggdb3
 DFLAGS	= -L./lib -lOSPOOC
 
 TARGET	= lib/libOSPOOC.so
@@ -21,7 +21,7 @@ $(TARGET): $(OBJECTS)
 	$(CC) $(IFLAGS) $(CFLAGS) -o $@ $<
 
 demo: $(TARGET) demo/windows.c
-	$(CC) $(IFLAGS) -o bin/windows demo/windows.c $(DFLAGS)
+	$(CC) $(IFLAGS) -o bin/windows demo/windows.c $(DFLAGS) -lm
 
 clean:
 	rm -r */*.o */*.so bin/*

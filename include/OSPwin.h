@@ -3,12 +3,17 @@
 
 #include"../include/OSPlib.h"
 
-#define OSPWND_EVENT	0
-#define OSPWND_GETKEY	1
-#define OSPWND_GETBTN	2
-#define OSPWND_SWAP		3
+#define OSPDPY_FLUSH			0
 
-#define OSPIMG_GETDATA	0
+#define OSPWND_EVENT			0
+#define OSPWND_GETKEY			1
+#define OSPWND_GETBTN			2
+#define OSPWND_SWAP				3
+
+#define OSPIMG_GETDATA			0
+
+#define OSPIMG_OPTION_LOCAL		0
+#define OSPIMG_OPTION_SHARED	1
 
 struct OSPwindow_s;
 
@@ -54,9 +59,12 @@ typedef struct OSPwindow_s {
 typedef struct OSPimage_s {
 	OSPobj _obj;
 
+	OSPdisplay *_dpy;
 	XImage *_img;
+	XShmSegmentInfo _shm;
 
 	uint32_t **_data;
+	uint8_t _stat;
 } OSPimage;
 
 OSPctr *OSPDpyCtr();
@@ -64,12 +72,12 @@ OSPdisplay *OSPDpyOf(OSPwindow *wnd);
 OSPdisplay *OSPDpy(char *dpyname);
 
 OSPctr *OSPWndCtr();
-OSPwindow *OSPWnd(OSPobj *, char *, int, int, int, int, uint32_t);
+OSPwindow *OSPWnd(void *, char *, int, int, int, int, uint32_t);
 
 OSPctr *OSPImgCtr();
-OSPimage *OSPImg(OSPdisplay *, int, int);
+OSPimage *OSPImg(void *, int, int, uint8_t);
 
 
-void OSPImgBlit(OSPobj *, OSPobj *, int, int, int, int, unsigned int, unsigned int);
+void OSPImgBlit(void *, void *, int, int, int, int, unsigned int, unsigned int);
 
 #endif /* __OSPWIN_H__ */

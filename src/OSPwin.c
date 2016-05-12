@@ -2,7 +2,6 @@
 
 void OSPDpyHdl(OSPobj **obj) {
 	OSPdisplay *dpy = (OSPdisplay *) obj[0];
-	int eventnb;
 	unsigned char idx;
 	char buf;
 
@@ -39,9 +38,7 @@ void OSPDpyHdl(OSPobj **obj) {
 		return;
 	}
 
-	eventnb = XPending(dpy->_dpy);
-
-	while(eventnb--) {
+	while(XPending(dpy->_dpy)) {
 		XNextEvent(dpy->_dpy, &dpy->_lst);
 
 		switch(dpy->_lst.type) {
@@ -62,7 +59,7 @@ void OSPDpyHdl(OSPobj **obj) {
 							if(!dpy->_slv->_nxt) {
 								OSPFre(&dpy->_obj);
 								obj[0] = &dpy->_obj;
-								eventnb = 0;
+								return;
 							}
 							else {
 								OSPRun(&dpy->_slv->_obj, OSPWND_EVENT, obj);
@@ -104,6 +101,16 @@ OSPdisplay *OSPDpy(char *dpyname) {
 	int perf = -1;
 	int vfoidx24 = -1;
 	int vfoidx = -1;
+
+/*	Should we use it...
+	char **extension_list = XListExtensions(dpy->_dpy, &noret);
+
+	for(idx = 0; idx < noret; idx++) {
+		printf("%d : %s\n",idx , extension_list[idx]);
+	}
+
+	XFreeExtensionList(extension_list);
+*/
 
 	if(!(ret->_dpy = XOpenDisplay(dpyname))) {
 		/* Display not found */
@@ -215,8 +222,6 @@ OSPdisplay *OSPDpy(char *dpyname) {
 
 	ret->_WMm[0] = XInternAtom(ret->_dpy, "WM_PROTOCOLS", 1);
 	ret->_WMm[1] = XInternAtom(ret->_dpy, "WM_DELETE_WINDOW", 1);
-
-/*	XFlush(ret->_dpy); Needed? */
 
 	ret->_slv = 0;
 
@@ -365,7 +370,6 @@ void OSPwnd_event(OSPobj *obj, va_list arg) {
 			break;
 
 		case Expose:
-/*			OSPRun(&wnd->_obj, OSPWND_SWAP); Very bad idea */
 			OSPrint(1, "OSPwnd_event : Window %d on connection %d "
 						"got exposed", wnd->_wnd,
 						XConnectionNumber(wnd->_dpy->_dpy));
@@ -397,7 +401,6 @@ void OSPwnd_event(OSPobj *obj, va_list arg) {
 						"on window %d on connection %d",
 						wnd->_wnd, XConnectionNumber(wnd->_dpy->_dpy));
 	}
-/*	XFlush(wnd->_dpy->_dpy); Useless or not */
 }
 
 void OSPwnd_getkey(OSPobj *obj, va_list arg) {
@@ -436,12 +439,10 @@ void OSPwnd_swap(OSPobj *obj, va_list arg) {
 	swpifo.swap_window = wnd->_wnd;
 	swpifo.swap_action = XdbeUndefined;
 
-	// XdbeSwapBuffers returns true on success, we return 0 on success.
 	if(XdbeSwapBuffers(wnd->_dpy->_dpy, &swpifo, 1)) {
-		OSPrint(1, "OSPwnd_swap : Window %d swapped "
+/*		OSPrint(1, "OSPwnd_swap : Window %d swapped "
 					"on connection %d",
-					wnd->_wnd, XConnectionNumber(wnd->_dpy->_dpy));
-/*		XFlush(wnd->_dpy->_dpy); */
+					wnd->_wnd, XConnectionNumber(wnd->_dpy->_dpy)); */
 	}
 	else {
 		OSPrint(1, "OSPwnd_swap : Unable to swap window %d "
@@ -464,7 +465,7 @@ OSPctr *OSPWndCtr() {
 	return ret;
 }
 
-OSPwindow *OSPWnd(OSPobj *master, char *wndname, int x, int y,
+OSPwindow *OSPWnd(void *master, char *wndname, int x, int y,
 					int width, int height, uint32_t back) {
 	OSPdisplay *dpy;
 	OSPwindow *mtr = (OSPwindow *) master;
@@ -541,20 +542,25 @@ OSPwindow *OSPWnd(OSPobj *master, char *wndname, int x, int y,
 	while(mtr->_slv->_prv) mtr->_slv = mtr->_slv->_prv;
 
 	XMapWindow(dpy->_dpy, ret->_wnd);
-/*	XFlush(dpy->_dpy); Needed? */
 
 	return ret;
 }
 
+#define SHM_ATTR	0x01
+#define SHM_ALLOC	0x02
+#define SHM_ATTCH	0x04
+
 void OSPImgHdl(OSPobj **obj) {
 	OSPimage *img = (OSPimage *) obj[0];
 
-/*	free(img->_img->data); Notice that neither XCreateImage
+	if(img->_stat & SHM_ATTCH) XShmDetach(img->_dpy->_dpy, &img->_shm);
+	if(img->_stat & SHM_ALLOC) shmdt(img->_shm.shmaddr);
+	if(img->_stat & SHM_ATTR) shmctl(img->_shm.shmid, IPC_RMID, 0);
+
+/*	if(img->_img->data) free(img->_img->data); Notice that neither XCreateImage
 							nor XInitImage allocate datas
 							while XDestroyImage frees it */
-	free(img->_data);
-	XDestroyImage(img->_img);
-/*	XFlush(wnd->_dpy->_dpy); Needed? */
+	if(img->_img) XDestroyImage(img->_img);
 }
 
 void OSPimg_getdata(OSPobj *obj, va_list arg) {
@@ -575,28 +581,122 @@ OSPctr *OSPImgCtr() {
 	return ret;
 }
 
-OSPimage *OSPImg(OSPdisplay *dpy, int width, int height) {
+OSPimage *OSPImg(void *from, int width, int height, uint8_t shared) {
 	OSPimage *ret = (OSPimage *) OSPAdd(OSPImgCtr());
 	char *datptr;
-	int x;
+	int idx;
 
-	ret->_img = XCreateImage(dpy->_dpy, dpy->_vfo.visual, dpy->_vfo.depth,
-							ZPixmap, 0, 0, width, height, 32, 0);
-	XInitImage(ret->_img);
+	if(from) {
+		if(((OSPobj *) from)->_fct == OSPDpyCtr()->_fct) {
+			ret->_dpy = (OSPdisplay *) from;
+		}
+		else {
+			if(((OSPobj *) from)->_fct != OSPWndCtr()->_fct) {
+				OSPrint(0, "OSPImg : Bad first argument, display or window needed");
+				return 0;
+			}
 
-	ret->_data = (uint32_t **) malloc(width * sizeof(void *));
-	ret->_img->data = malloc(width * ret->_img->bytes_per_line);
+			ret->_dpy = ((OSPwindow *) from)->_dpy;
+		}
+	}
+	else {
+		OSPrint(0, "OSPImg : Absent first argument, display or window needed");
+		return 0;
+	}
+
+	if(shared) {
+		ret->_img = XShmCreateImage(ret->_dpy->_dpy, ret->_dpy->_vfo.visual,
+									ret->_dpy->_vfo.depth, ZPixmap, 0, &ret->_shm,
+									width, height);
+	}
+
+	if(ret->_img) {
+		ret->_shm.shmid = shmget(IPC_PRIVATE, (height * ret->_img->bytes_per_line) +
+								(width * sizeof(void *)), IPC_CREAT | 0666);
+
+		if(ret->_shm.shmid < 0) {
+			OSPrint(0, "OSPImg : Unable to get shared memory segment "
+						"on connection %d : %s",
+						XConnectionNumber(ret->_dpy->_dpy), strerror(errno));
+
+			OSPFre(&ret->_obj);
+			return 0;
+		}
+
+		ret->_stat = SHM_ATTR;
+		ret->_shm.shmaddr = ret->_img->data = shmat(ret->_shm.shmid, 0, 0);
+
+		if(ret->_shm.shmaddr == (void *) -1) {
+			OSPrint(0, "OSPImg : Unable to allocate shared memory segment "
+						"data on connection %d : %s",
+						XConnectionNumber(ret->_dpy->_dpy), strerror(errno));
+
+			OSPFre(&ret->_obj);
+			return 0;
+		}
+
+		ret->_stat |= SHM_ALLOC;
+		ret->_shm.readOnly = False;
+
+		if(!XShmAttach(ret->_dpy->_dpy, &ret->_shm)) {
+			OSPrint(0, "OSPImg : Unable to attach shared memory segment "
+						"to connection %d",
+						XConnectionNumber(ret->_dpy->_dpy));
+
+			OSPFre(&ret->_obj);
+			return 0;
+		}
+
+		ret->_stat |= SHM_ALLOC;
+	}
+	else {
+		if(shared) {
+			OSPrint(1, "OSPImg : Unable to use shared memory extension "
+						"on connection %d",
+						XConnectionNumber(ret->_dpy->_dpy));
+		}
+
+		ret->_img = XCreateImage(ret->_dpy->_dpy, ret->_dpy->_vfo.visual,
+								ret->_dpy->_vfo.depth, ZPixmap, 0, 0,
+								width, height, 32, 0);
+
+		if(!ret->_img) {
+			OSPrint(0, "OSPImg : Unable to create image on connection %d",
+						XConnectionNumber(ret->_dpy->_dpy));
+			OSPFre(&ret->_obj);
+			return 0;
+		}
+
+		if(!XInitImage(ret->_img)) {
+			OSPrint(0, "OSPImg : Unable to init image on connection %d",
+						XConnectionNumber(ret->_dpy->_dpy));
+			OSPFre(&ret->_obj);
+			return 0;
+		}
+		ret->_img->data = malloc((height * ret->_img->bytes_per_line) +
+								(width * sizeof(void *)));
+
+		if(!ret->_img->data) {
+			OSPrint(0, "OSPImg : Unable to allocate image on connection %d",
+						XConnectionNumber(ret->_dpy->_dpy));
+			OSPFre(&ret->_obj);
+			return 0;
+		}
+	}
+
+	ret->_data = (uint32_t **)
+				&((uint8_t *) ret->_img->data)[height * ret->_img->bytes_per_line];
 	datptr = ret->_img->data;
 
-	for(x = 0; x < width; x++) {
-		ret->_data[x] = (uint32_t *) datptr;
+	for(idx = 0; idx < width; idx++) {
+		ret->_data[idx] = (uint32_t *) datptr;
 		datptr += ret->_img->bytes_per_line;
 	}
 
 	return ret;
 }
 
-void OSPImgBlit(OSPobj *orig, OSPobj *dest, int x_orig, int y_orig,
+void OSPImgBlit(void *orig, void *dest, int x_orig, int y_orig,
 			int x_dest, int y_dest, unsigned int width, unsigned int height) {
 	OSPimage *orig_as_image = (OSPimage *) orig;
 	OSPwindow *orig_as_window = (OSPwindow *) orig;
@@ -612,11 +712,23 @@ void OSPImgBlit(OSPobj *orig, OSPobj *dest, int x_orig, int y_orig,
 
 	switch(mode) {
 		case image_to_window:
-			XPutImage(dest_as_window->_dpy->_dpy, dest_as_window->_bbf,
-						dest_as_window->_gc, orig_as_image->_img,
-						x_orig, y_orig, x_dest, y_dest, width, height);
+			if(orig_as_image->_stat & SHM_ATTCH) {
+				/* No error check since Xlib craches the process itself */
+				XShmPutImage(dest_as_window->_dpy->_dpy, dest_as_window->_bbf,
+							dest_as_window->_gc, orig_as_image->_img,
+							x_orig, y_orig, x_dest, y_dest, width, height, True);
+			}
+			else {
+				/* No error check since Xlib craches the process itself */
+				XPutImage(dest_as_window->_dpy->_dpy, dest_as_window->_bbf,
+							dest_as_window->_gc, orig_as_image->_img,
+							x_orig, y_orig, x_dest, y_dest, width, height);
+			}
 		default:;
 	}
 }
 
+#undef SHM_ATTR
+#undef SHM_ALLOC
+#undef SHM_ATTCH
 

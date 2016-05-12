@@ -2,6 +2,7 @@
 #define __OSPLIB_H__
 
 #include<time.h>
+#include<math.h>
 #include<errno.h>
 #include<stdio.h>
 #include<stdlib.h>
@@ -14,9 +15,12 @@
 #include<X11/Xutil.h>			/* For visual informations */
 #include<X11/keysym.h>			/* For ??? */
 #include<X11/extensions/Xdbe.h>
+#include<X11/extensions/XShm.h>
 #include<GL/gl.h>
 #include<GL/glx.h>
 #include<GL/glxext.h>			/* For ??? */
+#include<sys/ipc.h>
+#include<sys/shm.h>
 #include<sys/stat.h>
 #include<sys/epoll.h>
 #include<sys/types.h>

@@ -1,5 +1,8 @@
 #include"OSPlib.h"
 
+#define WIDTH	640
+#define HEIGHT	480
+
 int main(int argc, char *argv[]) {
 	OSPdisplay *dpy = OSPDpy(0);
 	OSPobj *trig;
@@ -7,11 +10,28 @@ int main(int argc, char *argv[]) {
 	int x;
 	int y;
 	uint8_t offset = 0;
+	double floatset = 254;
 	int run = 1;
 
-	OSPwindow *win1 = OSPWnd(&dpy->_obj, "OSPOOC Demo", 0, 0, 640, 480, 0x0000FF00);
-//	OSPWnd(&dpy->_obj, "OSPOOC Demo2", 0, 0, 640, 480, 0x000000FF);
-	OSPimage *img = OSPImg(dpy, 640, 480);
+	if(!dpy) {
+		OSPFre(0);
+		return 0;
+	}
+
+	OSPwindow *win = OSPWnd(dpy, "OSPOOC Demo", 0, 0, WIDTH, HEIGHT, 0x0000FF00);
+
+	if(!win) {
+		OSPFre(0);
+		return 0;
+	}
+
+//	OSPimage *img = OSPImg(dpy, WIDTH, HEIGHT, OSPIMG_OPTION_LOCAL);
+	OSPimage *img = OSPImg(dpy, WIDTH, HEIGHT, OSPIMG_OPTION_SHARED);
+
+	if(!img) {
+		OSPFre(0);
+		return 0;
+	}
 
 	while(run) {
 		int timestat = 10;
@@ -23,19 +43,28 @@ int main(int argc, char *argv[]) {
 			}
 		}
 		else{
-			offset += 30;
+			offset += 1;
+			floatset += 0.01;
 
-			for(y = 0; y < 480; y++) {
-				for(x = 0; x < 640; x++) {
-					uint8_t val = x + y + offset;
-					uint8_t tpr = x - y + offset;
-					img->_data[y][x] = val | (val << 8) | (val << 16) | (tpr << 24);
+			for(y = 0; y < HEIGHT; y++) {
+				for(x = 0; x < WIDTH; x++) {
+					int xrelat = x - (WIDTH >> 1);
+					int yrelat = y - (HEIGHT >> 1);
+					uint8_t red = x + y + offset;
+					uint8_t green = (sin(sqrt((xrelat * xrelat) +
+									(yrelat * yrelat) >> 6) - offset) * 128) + 128;
+					uint8_t blue = xrelat * yrelat * floatset;
+
+//					red = green;
+//					blue = green;
+
+					img->_data[y][x] = blue | (green << 8) | (red << 16);
 				}
 			}
 
-			OSPImgBlit(&img->_obj, &win1->_obj, 0, 0, 0, 0, 640, 480);
+			OSPImgBlit(img, win, 0, 0, 0, 0, WIDTH, HEIGHT);
 
-			OSPRun(&win1->_obj, OSPWND_SWAP);
+			OSPRun(&win->_obj, OSPWND_SWAP);
 		}
 	}
 
