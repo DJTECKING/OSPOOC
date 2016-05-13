@@ -1,4 +1,5 @@
 Use pkg-config --variable pc_path pkg-config to know where are stored .pc files.
 Manage keyboard
 Add Image copy manipulation in OSPwin.c:OSPImgBlit
+Resolve performance issues
 

@@ -25,8 +25,8 @@ int main(int argc, char *argv[]) {
 		return 0;
 	}
 
-//	OSPimage *img = OSPImg(dpy, WIDTH, HEIGHT, OSPIMG_OPTION_LOCAL);
-	OSPimage *img = OSPImg(dpy, WIDTH, HEIGHT, OSPIMG_OPTION_SHARED);
+	OSPimage *img = OSPImg(dpy, WIDTH, HEIGHT, OSPIMG_OPTION_LOCAL);
+/*	OSPimage *img = OSPImg(dpy, WIDTH, HEIGHT, OSPIMG_OPTION_SHARED); */
 
 	if(!img) {
 		OSPFre(0);
@@ -35,6 +35,7 @@ int main(int argc, char *argv[]) {
 
 	while(run) {
 		int timestat = 10;
+	OSPRun(&dpy->_obj, OSPDPY_FLUSH);
 		trig = OSPWte(&timestat);
 
 		if(timestat) {
@@ -54,9 +55,6 @@ int main(int argc, char *argv[]) {
 					uint8_t green = (sin(sqrt((xrelat * xrelat) +
 									(yrelat * yrelat) >> 6) - offset) * 128) + 128;
 					uint8_t blue = xrelat * yrelat * floatset;
-
-//					red = green;
-//					blue = green;
 
 					img->_data[y][x] = blue | (green << 8) | (red << 16);
 				}

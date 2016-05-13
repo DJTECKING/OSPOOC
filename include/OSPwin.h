@@ -8,7 +8,9 @@
 #define OSPWND_EVENT			0
 #define OSPWND_GETKEY			1
 #define OSPWND_GETBTN			2
+#ifdef OSP_XDBE_SUPPORT
 #define OSPWND_SWAP				3
+#endif
 
 #define OSPIMG_GETDATA			0
 
@@ -45,7 +47,9 @@ typedef struct OSPwindow_s {
 
 	OSPdisplay *_dpy;
 	Window _wnd;
+#ifdef OSP_XDBE_SUPPORT
 	XdbeBackBuffer _bbf;
+#endif
 	GC _gc;
 	int _x;
 	int _y;
@@ -81,3 +85,4 @@ OSPimage *OSPImg(void *, int, int, uint8_t);
 void OSPImgBlit(void *, void *, int, int, int, int, unsigned int, unsigned int);
 
 #endif /* __OSPWIN_H__ */
+
