@@ -1,7 +1,8 @@
 CC		= gcc -g
 IFLAGS	= -Iinclude
 CFLAGS	= -std=c99 -fPIC -pedantic -Wall -Wextra -c
-DFLAGS	= -DOSP_XDBE_SUPPORT -D_XOPEN_SOURCE
+EXTFLS	= -DOSP_XDBE_SUPPORT
+DFLAGS	= -D_XOPEN_SOURCE $(EXTFLS)
 LFLAGS	= -shared -lX11 -lXext -lm
 EFLAGS	= -L./lib -lOSPOOC
 
@@ -21,8 +22,8 @@ $(TARGET): $(OBJECTS)
 %.o: %.c
 	$(CC) $(IFLAGS) $(CFLAGS) -o $@ $< $(DFLAGS)
 
-demo: $(TARGET) demo/windows.c
-	$(CC) $(IFLAGS) -o bin/windows demo/windows.c $(EFLAGS) -lm -DOSP_XDBE_SUPPORT
+demo: $(TARGET) demo/ball.c
+	$(CC) $(IFLAGS) -o bin/ball demo/ball.c $(EFLAGS) -lm $(EXTFLS)
 
 clean:
 	rm -r */*.o */*.so bin/*

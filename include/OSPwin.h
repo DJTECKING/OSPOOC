@@ -14,9 +14,6 @@
 
 #define OSPIMG_GETDATA			0
 
-#define OSPIMG_OPTION_LOCAL		0
-#define OSPIMG_OPTION_SHARED	1
-
 struct OSPwindow_s;
 
 typedef struct OSPdisplay_s {
@@ -79,10 +76,10 @@ OSPctr *OSPWndCtr();
 OSPwindow *OSPWnd(void *, char *, int, int, int, int, uint32_t);
 
 OSPctr *OSPImgCtr();
-OSPimage *OSPImg(void *, int, int, uint8_t);
+OSPimage *OSPImg(void *, int, int);
 
 
-void OSPImgBlit(void *, void *, int, int, int, int, unsigned int, unsigned int);
+void OSPBlit(void *, void *, int, int, int, int, unsigned int, unsigned int);
 
 #endif /* __OSPWIN_H__ */
 

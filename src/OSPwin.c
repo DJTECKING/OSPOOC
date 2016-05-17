@@ -105,9 +105,7 @@ OSPdisplay *OSPDpy(char *dpyname) {
 	XVisualInfo *vfomtc;
 
 	int idx;
-#endif
 	int noret;
-#ifdef OSP_XDBE_SUPPORT
 	int perf24 = -1;
 	int perf = -1;
 	int vfoidx24 = -1;
@@ -131,10 +129,11 @@ OSPdisplay *OSPDpy(char *dpyname) {
 		return 0;
 	}
 
-	noret = ret->_scn = XDefaultScreen(ret->_dpy);
+	ret->_scn = XDefaultScreen(ret->_dpy);
 	rtwnd = DefaultRootWindow(ret->_dpy);
 
 #ifdef OSP_XDBE_SUPPORT
+	noret = ret->_scn;
 	vfolst = XdbeGetVisualInfo(ret->_dpy, &rtwnd, &noret);
 	
 	if (!vfolst || (noret < 1) || (vfolst->count < 1)) {
@@ -441,7 +440,7 @@ void OSPwnd_getbtn(OSPobj *obj, va_list arg) {
 	ret[0] = wnd->_btn;
 	wnd->_btn = (wnd->_btn << 8) | (wnd->_btn & 0x00FF);
 
-	OSPrint(1, "OSPwnd_getbtn : Got key from "
+	OSPrint(1, "OSPwnd_getbtn : Got button from "
 				"window %d on connection %d",
 				wnd->_wnd, XConnectionNumber(wnd->_dpy->_dpy));
 }
@@ -606,7 +605,7 @@ OSPctr *OSPImgCtr() {
 	return ret;
 }
 
-OSPimage *OSPImg(void *from, int width, int height, uint8_t shared) {
+OSPimage *OSPImg(void *from, int width, int height) {
 	OSPimage *ret = (OSPimage *) OSPAdd(OSPImgCtr());
 	char *datptr;
 	int idx;
@@ -629,15 +628,13 @@ OSPimage *OSPImg(void *from, int width, int height, uint8_t shared) {
 		return 0;
 	}
 
-	if(shared) {
-		ret->_img = XShmCreateImage(ret->_dpy->_dpy, ret->_dpy->_vfo.visual,
-									ret->_dpy->_vfo.depth, ZPixmap, 0, &ret->_shm,
-									width, height);
-	}
+	ret->_img = XShmCreateImage(ret->_dpy->_dpy, ret->_dpy->_vfo.visual,
+								ret->_dpy->_vfo.depth, ZPixmap, 0, &ret->_shm,
+								width, height);
 
 	if(ret->_img) {
-		ret->_shm.shmid = shmget(IPC_PRIVATE, (height * ret->_img->bytes_per_line) +
-								(width * sizeof(void *)), IPC_CREAT | 0666);
+		ret->_shm.shmid = shmget(IPC_PRIVATE, height * (ret->_img->bytes_per_line +
+								sizeof(void *)), IPC_CREAT | 0666);
 
 		if(ret->_shm.shmid < 0) {
 			OSPrint(0, "OSPImg : Unable to get shared memory segment "
@@ -675,12 +672,6 @@ OSPimage *OSPImg(void *from, int width, int height, uint8_t shared) {
 		ret->_stat |= SHM_ALLOC;
 	}
 	else {
-		if(shared) {
-			OSPrint(1, "OSPImg : Unable to use shared memory extension "
-						"on connection %d",
-						XConnectionNumber(ret->_dpy->_dpy));
-		}
-
 		ret->_img = XCreateImage(ret->_dpy->_dpy, ret->_dpy->_vfo.visual,
 								ret->_dpy->_vfo.depth, ZPixmap, 0, 0,
 								width, height, 32, 0);
@@ -698,8 +689,8 @@ OSPimage *OSPImg(void *from, int width, int height, uint8_t shared) {
 			OSPFre(&ret->_obj);
 			return 0;
 		}
-		ret->_img->data = malloc((height * ret->_img->bytes_per_line) +
-								(width * sizeof(void *)));
+		ret->_img->data = malloc(height * (ret->_img->bytes_per_line +
+								sizeof(void *)));
 
 		if(!ret->_img->data) {
 			OSPrint(0, "OSPImg : Unable to allocate image on connection %d",
@@ -713,7 +704,7 @@ OSPimage *OSPImg(void *from, int width, int height, uint8_t shared) {
 				&((uint8_t *) ret->_img->data)[height * ret->_img->bytes_per_line];
 	datptr = ret->_img->data;
 
-	for(idx = 0; idx < width; idx++) {
+	for(idx = 0; idx < height; idx++) {
 		ret->_data[idx] = (uint32_t *) datptr;
 		datptr += ret->_img->bytes_per_line;
 	}
@@ -721,8 +712,11 @@ OSPimage *OSPImg(void *from, int width, int height, uint8_t shared) {
 	return ret;
 }
 
-void OSPImgBlit(void *orig, void *dest, int x_orig, int y_orig,
+void OSPBlit(void *orig, void *dest, int x_orig, int y_orig,
 			int x_dest, int y_dest, unsigned int width, unsigned int height) {
+	unsigned int x;
+	unsigned int y;
+
 	OSPimage *orig_as_image = (OSPimage *) orig;
 	OSPwindow *orig_as_window = (OSPwindow *) orig;
 	OSPimage *dest_as_image = (OSPimage *) dest;
@@ -733,9 +727,73 @@ void OSPImgBlit(void *orig, void *dest, int x_orig, int y_orig,
 		image_to_window = 1,
 		window_to_image = 2,
 		window_to_window = 3
-	} mode = image_to_window;
+	} mode = image_to_image;
+
+	if(((OSPobj *) orig)->_fct == OSPWndCtr()->_fct) {
+		mode |= window_to_image;
+	}
+	else if(((OSPobj *) orig)->_fct != OSPImgCtr()->_fct) {
+		OSPrint(0, "OSPImgBlit : Source is neither a window nor an image");
+		return;
+	}
+
+	if(((OSPobj *) dest)->_fct == OSPWndCtr()->_fct) {
+		mode |= image_to_window;
+	}
+	else if(((OSPobj *) dest)->_fct != OSPImgCtr()->_fct) {
+		OSPrint(0, "OSPImgBlit : Destination is neither a window nor an image");
+		return;
+	}
 
 	switch(mode) {
+		case image_to_image:
+			/* This is the painter's algorithm */
+			for(y = 0; y < height; y++) {
+				for(x = 0; x < width; x++) {
+					uint16_t oa = (orig_as_image->_data[y + y_orig][x + x_orig] >> 24) & 0x00FF;
+					uint16_t or = (orig_as_image->_data[y + y_orig][x + x_orig] >> 16) & 0x00FF;
+					uint16_t og = (orig_as_image->_data[y + y_orig][x + x_orig] >> 8) & 0x00FF;
+					uint16_t ob = (orig_as_image->_data[y + y_orig][x + x_orig]) & 0x00FF;
+
+					uint16_t da = (dest_as_image->_data[y + y_dest][x + x_dest] >> 24) & 0x00FF;
+					uint16_t dr = (dest_as_image->_data[y + y_dest][x + x_dest] >> 16) & 0x00FF;
+					uint16_t dg = (dest_as_image->_data[y + y_dest][x + x_dest] >> 8) & 0x00FF;
+					uint16_t db = (dest_as_image->_data[y + y_dest][x + x_dest]) & 0x00FF;
+
+					if(oa == 0xFF) {
+						/* Src is opaque, no more computation needed */
+						dest_as_image->_data[y + y_dest][x + x_dest] =
+						orig_as_image->_data[y + y_orig][x + x_orig];
+						continue;
+					}
+
+					if(!oa) {
+						/* No copy has to be done if src is transparent */
+						continue;
+					}
+
+					or = (or * oa) / 0xFF;
+					og = (og * oa) / 0xFF;
+					ob = (ob * oa) / 0xFF;
+
+					dr = (dr * (0xFF - oa)) / 0xFF;
+					dg = (dg * (0xFF - oa)) / 0xFF;
+					db = (db * (0xFF - oa)) / 0xFF;
+
+					da += (0xFF - da) * (oa / 0xFF);
+					dr += or;
+					dg += og;
+					db += ob;
+
+					dest_as_image->_data[y + y_dest][x + x_dest] =
+													((da & 0xFF) << 24) |
+													((dr & 0xFF) << 16) |
+													((dg & 0xFF) << 8) |
+													(db & 0xFF);
+				}
+			}
+
+			break;
 		case image_to_window:
 			if(orig_as_image->_stat & SHM_ATTCH) {
 				/* No error check since Xlib craches the process itself */
@@ -761,6 +819,41 @@ void OSPImgBlit(void *orig, void *dest, int x_orig, int y_orig,
 							x_orig, y_orig, x_dest, y_dest, width, height);
 #endif
 			}
+
+			break;
+		case window_to_image:
+			if(orig_as_image->_stat & SHM_ATTCH) {
+				/* No error check since Xlib craches the process itself */
+#ifdef OSP_XDBE_SUPPORT
+				XShmGetImage(orig_as_window->_dpy->_dpy, orig_as_window->_bbf,
+							dest_as_image->_img, x_orig, y_orig, ~0);
+#else
+				XShmGetImage(orig_as_window->_dpy->_dpy, orig_as_window->_wnd,
+							dest_as_image->_img, x_orig, y_orig, ~0);
+#endif
+			}
+			else {
+				/* No error check since Xlib craches the process itself */
+#ifdef OSP_XDBE_SUPPORT
+				XGetImage(orig_as_window->_dpy->_dpy, orig_as_window->_bbf,
+							x_orig, y_orig, width, height, ~0, ZPixmap);
+#else
+				XGetImage(orig_as_window->_dpy->_dpy, orig_as_window->_wnd,
+							x_orig, y_orig, width, height, ~0, ZPixmap);
+#endif
+			}
+
+			break;
+		case window_to_window:
+#ifdef OSP_XDBE_SUPPORT
+			XCopyArea(dest_as_window->_dpy->_dpy, orig_as_window->_bbf,
+							dest_as_window->_bbf, dest_as_window->_gc,
+							x_orig, y_orig, width, height,  x_dest, y_dest);
+#else
+			XCopyArea(dest_as_window->_dpy->_dpy, orig_as_window->_wnd,
+							dest_as_window->_wnd, dest_as_window->_gc,
+							x_orig, y_orig, width, height,  x_dest, y_dest);
+#endif
 		default:;
 	}
 }
