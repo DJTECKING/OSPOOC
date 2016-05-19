@@ -545,7 +545,6 @@ OSPwindow *OSPWnd(void *master, char *wndname, int x, int y,
 
 		if(wndname) XStoreName(dpy->_dpy, ret->_wnd, wndname);
 
-		ret->_gc = XCreateGC(dpy->_dpy, ret->_wnd, 0, 0);
 		XGetWindowAttributes(dpy->_dpy, ret->_wnd, &size);
 
 		ret->_x = size.x;
@@ -556,6 +555,8 @@ OSPwindow *OSPWnd(void *master, char *wndname, int x, int y,
 		ret->_x = x;
 		ret->_y = y;
 	}
+	
+	ret->_gc = XCreateGC(dpy->_dpy, ret->_wnd, 0, 0);
 
 	ret->_mtr = mtr;
 	ret->_nxt = mtr->_slv;
