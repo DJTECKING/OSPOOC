@@ -35,7 +35,7 @@ void *OSPGetBuffer(OSPbuf *buf) {
 OSPbuf *OSPBuf(OSPctr *ctr, uint64_t cnt) {
 	uint64_t no;
 	OSPbuf *ret = calloc(1, sizeof(OSPbuf) +
-							0x10 + (((cnt - 1) >> 3) & ~0x07 +
+							0x10 + (((cnt - 1) >> 3) & ~0x07) +
 							(ctr->_dsz * cnt));
 
 	if(!ret) {
