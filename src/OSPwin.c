@@ -14,7 +14,8 @@ void OSPDpyHdl(OSPobj **obj) {
 		}
 
 		if(dpy->_dpy) {
-			XFreeColormap(dpy->_dpy, dpy->_atr.colormap);
+			XFreeColormap(dpy->_dpy, dpy->_atr[0].colormap);
+			if(dpy->_atr[1].colormap) XFreeColormap(dpy->_dpy, dpy->_atr[1].colormap);
 			XCloseDisplay(dpy->_dpy);
 		}
 
@@ -170,14 +171,14 @@ OSPdisplay *OSPDpy(char *dpyname) {
 		vfoidx = vfoidx24;
 	}
 	
-	ret->_vfo.visualid = vfolst->visinfo[vfoidx].visual;
-	ret->_vfo.screen = ret->_scn; 
-	ret->_vfo.depth = vfolst->visinfo[vfoidx].depth;
+	ret->_vfo[0].visualid = vfolst->visinfo[vfoidx].visual;
+	ret->_vfo[0].screen = ret->_scn; 
+	ret->_vfo[0].depth = vfolst->visinfo[vfoidx].depth;
 	
 	XdbeFreeVisualInfo(vfolst);
 	
 	vfomtc = XGetVisualInfo(ret->_dpy, VisualIDMask | VisualScreenMask | VisualDepthMask,
-							&ret->_vfo, &noret);
+							ret->_vfo, &noret);
 	
 	if(!vfomtc || (noret < 1)) {
 		OSPrint(0, "OSPdisplay : Double buffer visual not mached");
@@ -185,15 +186,16 @@ OSPdisplay *OSPDpy(char *dpyname) {
 		return 0;
 	}
 	
-	memcpy(&ret->_vfo, vfomtc, sizeof(XVisualInfo));
+	memcpy(ret->_vfo, vfomtc, sizeof(XVisualInfo));
+	ret->_vfo[1].visual = 0;
 	
 	for(idx = 0; idx < noret; idx++) {
 		XFree(&vfomtc[idx]);
 	}
 #else
-	if(!XMatchVisualInfo(ret->_dpy, ret->_scn, 32, TrueColor, &ret->_vfo)) {
+	if(!XMatchVisualInfo(ret->_dpy, ret->_scn, 32, TrueColor, ret->_vfo)) {
 		OSPrint(1, "OSPdisplay : 32 bits color not alloed");
-		if(!XMatchVisualInfo(ret->_dpy, ret->_scn, 24, TrueColor, &ret->_vfo)) {
+		if(!XMatchVisualInfo(ret->_dpy, ret->_scn, 24, TrueColor, ret->_vfo)) {
 			/* No proper color depth available */
 			OSPrint(0, "OSPdisplay : Screen not compatible with 32 or 24 bits true color");
 			OSPFre(&ret->_obj);
@@ -202,34 +204,35 @@ OSPdisplay *OSPDpy(char *dpyname) {
 	}
 #endif
 
-	ret->_atr.colormap = XCreateColormap(ret->_dpy, rtwnd, ret->_vfo.visual, AllocNone);
-	ret->_atr.border_pixel = 0;
-	ret->_atr.event_mask =	KeyPressMask | /* Keyboard down events wanted */
-							KeyReleaseMask | /* Keyboard up events wanted */
-							ButtonPressMask | /* Pointer button down events wanted */
-							ButtonReleaseMask | /* Pointer button up events wanted */
-							EnterWindowMask | /* Pointer window entry events wanted */
-							LeaveWindowMask | /* Pointer window leave events wanted */
-							PointerMotionMask | /* Pointer motion events wanted */
-							PointerMotionHintMask | /* Pointer motion hints wanted */
-							Button1MotionMask | /* Pointer motion while button 1 down */
-							Button2MotionMask | /* Pointer motion while button 2 down */
-							Button3MotionMask | /* Pointer motion while button 3 down */
-							Button4MotionMask | /* Pointer motion while button 4 down */
-							Button5MotionMask | /* Pointer motion while button 5 down */
-							ButtonMotionMask | /* Pointer motion while any button down */
-							KeymapStateMask | /* Keyboard state wanted at window entry and focus in */
-							ExposureMask; /* Any exposure wanted */
+	ret->_atr[0].colormap = XCreateColormap(ret->_dpy, rtwnd, ret->_vfo[0].visual, AllocNone);
+	ret->_atr[0].border_pixel = 0;
+	ret->_atr[0].event_mask =	KeyPressMask | /* Keyboard down events wanted */
+								KeyReleaseMask | /* Keyboard up events wanted */
+								ButtonPressMask | /* Pointer button down events wanted */
+								ButtonReleaseMask | /* Pointer button up events wanted */
+								EnterWindowMask | /* Pointer window entry events wanted */
+								LeaveWindowMask | /* Pointer window leave events wanted */
+								PointerMotionMask | /* Pointer motion events wanted */
+								PointerMotionHintMask | /* Pointer motion hints wanted */
+								Button1MotionMask | /* Pointer motion while button 1 down */
+								Button2MotionMask | /* Pointer motion while button 2 down */
+								Button3MotionMask | /* Pointer motion while button 3 down */
+								Button4MotionMask | /* Pointer motion while button 4 down */
+								Button5MotionMask | /* Pointer motion while button 5 down */
+								ButtonMotionMask | /* Pointer motion while any button down */
+								KeymapStateMask | /* Keyboard state wanted at window entry and focus in */
+								ExposureMask; /* Any exposure wanted */
 
-							/* VisibilityChangeMask | Any change in visibility wanted */
-							/* StructureNotifyMask | Any change in window structure wanted */
-							/* ResizeRedirectMask | Redirect resize of this window */
-							/* SubstructureNotifyMask | Substructure notification wanted */
-							/* SubstructureRedirectMask | Redirect structure requests on children */
-							/* FocusChangeMask | Any change in input focus wanted */
-							/* PropertyChangeMask | Any change in property wanted */
-							/* ColormapChangeMask | Any change in colormap wanted */
-							/* OwnerGrabButtonMask; Automatic grabs should activate with owner_events set to True */
+								/* VisibilityChangeMask | Any change in visibility wanted */
+								/* StructureNotifyMask | Any change in window structure wanted */
+								/* ResizeRedirectMask | Redirect resize of this window */
+								/* SubstructureNotifyMask | Substructure notification wanted */
+								/* SubstructureRedirectMask | Redirect structure requests on children */
+								/* FocusChangeMask | Any change in input focus wanted */
+								/* PropertyChangeMask | Any change in property wanted */
+								/* ColormapChangeMask | Any change in colormap wanted */
+								/* OwnerGrabButtonMask; Automatic grabs should activate with owner_events set to True */
+	ret->_atr[1].colormap = 0;
 
 	ret->_WMm[0] = XInternAtom(ret->_dpy, "WM_PROTOCOLS", 1);
 	ret->_WMm[1] = XInternAtom(ret->_dpy, "WM_DELETE_WINDOW", 1);
@@ -514,14 +517,14 @@ OSPwindow *OSPWnd(void *master, char *wndname, int x, int y,
 	}
 
 	ret = (OSPwindow *) OSPAdd(OSPWndCtr());
-	dpy->_atr.background_pixel = back;
+	dpy->_atr[0].background_pixel = back;
 
 	ret->_dpy = dpy;
 	ret->_wnd = XCreateWindow(dpy->_dpy, prt, x, y, width, height, 0,
-								dpy->_vfo.depth, InputOutput,
-								dpy->_vfo.visual, CWColormap |
+								dpy->_vfo[0].depth, InputOutput,
+								dpy->_vfo[0].visual, CWColormap |
 								CWBorderPixel | CWBackPixel |
-								CWEventMask, &dpy->_atr);
+								CWEventMask, &dpy->_atr[0]);
 
 #ifdef OSP_XDBE_SUPPORT
 	ret->_bbf = XdbeAllocateBackBufferName(dpy->_dpy, ret->_wnd, XdbeUndefined);
@@ -555,8 +558,11 @@ OSPwindow *OSPWnd(void *master, char *wndname, int x, int y,
 		ret->_x = x;
 		ret->_y = y;
 	}
-	
+
 	ret->_gc = XCreateGC(dpy->_dpy, ret->_wnd, 0, 0);
+
+	ret->_w = width;
+	ret->_h = height;
 
 	ret->_mtr = mtr;
 	ret->_nxt = mtr->_slv;
@@ -570,6 +576,193 @@ OSPwindow *OSPWnd(void *master, char *wndname, int x, int y,
 
 	return ret;
 }
+
+#define SCN_WINDOW	0x01
+
+void OSPScnHdl(OSPobj **obj) {
+	OSPscene *scn = (OSPscene *) obj[0];
+
+	if(scn->_mtr->_slv == (OSPwindow *) scn) {
+		if(scn->_nxt) scn->_mtr->_slv = scn->_nxt;
+		else scn->_mtr->_slv = scn->_prv;
+	}
+
+	if(scn->_nxt) scn->_nxt->_prv = scn->_prv;
+	if(scn->_prv) scn->_prv->_nxt = scn->_nxt;
+
+	if(scn->_glc) glXDestroyContext(scn->_dpy->_dpy, scn->_glc);
+	if(scn->_stat & SCN_WINDOW) XDestroyWindow(scn->_dpy->_dpy, scn->_wnd);
+	XFlush(scn->_dpy->_dpy);
+}
+
+void OSPscn_swap(OSPobj *obj, va_list arg) {
+	OSPscene *scn = (OSPscene *) obj;
+
+	glXSwapBuffers(scn->_dpy->_dpy, scn->_wnd);
+
+	OSPrint(1, "OSPwnd_swap : Swapped Scene %d "
+				"on connection %d",
+				scn->_wnd, XConnectionNumber(scn->_dpy->_dpy));
+}
+
+void OSPscn_focus(OSPobj *obj, va_list arg) {
+	OSPscene *scn = (OSPscene *) obj;
+
+	glXMakeCurrent(scn->_dpy->_dpy, scn->_wnd, scn->_glc);
+}
+
+OSPctr *OSPScnCtr() {
+	static OSPctr *ret = 0;
+
+	if(ret) return ret;
+	ret = OSPCtr(OSPWndCtr(), 5, sizeof(OSPscene), OSPScnHdl);
+
+	ret->_fct[OSPWND_SWAP] = OSPscn_swap;
+	ret->_fct[OSPSCN_FOCUS] = OSPscn_focus;
+
+	return ret;
+}
+
+OSPscene *OSPScn(OSPwindow *wnd, int x, int y, int width, int height, uint32_t back) {
+	OSPscene *ret;
+
+	if(!wnd) return 0;
+
+	if(wnd->_obj._fct != OSPWndCtr()->_fct) {
+		OSPrint(0, "OSPscene : Need a window as first param");
+		return 0;
+	}
+
+	ret = (OSPscene *) OSPAdd(OSPScnCtr());
+	ret->_dpy = wnd->_dpy;
+
+	if(!wnd->_dpy->_vfo[1].visual) {
+		/* Open GL visual needs to be found */
+		int attribs[] = {
+			GLX_X_RENDERABLE,	True,
+			GLX_DRAWABLE_TYPE,	GLX_WINDOW_BIT | GLX_PIXMAP_BIT,
+			GLX_RENDER_TYPE,	GLX_RGBA_BIT,
+			GLX_X_VISUAL_TYPE,	GLX_TRUE_COLOR,
+			GLX_RED_SIZE,		8,
+			GLX_GREEN_SIZE,		8,
+			GLX_BLUE_SIZE,		8,
+			GLX_ALPHA_SIZE,		8,
+			GLX_DEPTH_SIZE,		24,
+			GLX_STENCIL_SIZE,	8,
+			GLX_DOUBLEBUFFER,	True, None
+		};
+		int best_fbc = -1, best_num_samp = -1, idx, vcnt;
+		XVisualInfo *vfo;
+
+		GLXFBConfig* fbc = glXChooseFBConfig(ret->_dpy->_dpy, ret->_dpy->_scn, attribs, &vcnt);
+		if(!vcnt) {
+			OSPrint(0, "OSPscene : Scene not available");
+
+			OSPFre(&ret->_obj);
+			return 0;
+		}
+
+		for(idx = 0; idx < vcnt; idx++) {
+			XVisualInfo *vi = glXGetVisualFromFBConfig(ret->_dpy->_dpy, fbc[idx]);
+
+			if(vi) {
+				int samp_buf, samples;
+				glXGetFBConfigAttrib(ret->_dpy->_dpy, fbc[idx], GLX_SAMPLES, &samples);
+
+				if(samples > best_num_samp) {
+					best_fbc = idx;
+					best_num_samp = samples;
+				}
+			}
+
+			XFree(vi);
+		}
+
+		if(best_fbc == -1) {
+			XFree(fbc);
+
+			OSPFre(&ret->_obj);
+			return 0;
+		}
+
+		vfo = glXGetVisualFromFBConfig(ret->_dpy->_dpy, fbc[best_fbc]);
+		memcpy(&ret->_dpy->_vfo[1], vfo, sizeof(XVisualInfo));
+
+		/* Be sure to free the FBConfig list allocated by glXChooseFBConfig() */
+		XFree(fbc);
+
+		/* window attributes */
+		ret->_dpy->_atr[1].colormap = XCreateColormap(ret->_dpy->_dpy,
+												wnd->_wnd,
+												vfo->visual, AllocNone);
+		XFree(vfo);
+		ret->_dpy->_atr[1].border_pixel = 0;
+		ret->_dpy->_atr[1].event_mask = KeyPressMask | /* Keyboard down events wanted */
+										KeyReleaseMask | /* Keyboard up events wanted */
+										ButtonPressMask | /* Pointer button down events wanted */
+										ButtonReleaseMask | /* Pointer button up events wanted */
+										EnterWindowMask | /* Pointer window entry events wanted */
+										LeaveWindowMask | /* Pointer window leave events wanted */
+										PointerMotionMask | /* Pointer motion events wanted */
+										PointerMotionHintMask | /* Pointer motion hints wanted */
+										Button1MotionMask | /* Pointer motion while button 1 down */
+										Button2MotionMask | /* Pointer motion while button 2 down */
+										Button3MotionMask | /* Pointer motion while button 3 down */
+										Button4MotionMask | /* Pointer motion while button 4 down */
+										Button5MotionMask | /* Pointer motion while button 5 down */
+										ButtonMotionMask | /* Pointer motion while any button down */
+										KeymapStateMask | /* Keyboard state wanted at window entry and focus in */
+										ExposureMask; /* Any exposure wanted */
+
+										/* VisibilityChangeMask | Any change in visibility wanted */
+										/* StructureNotifyMask | Any change in window structure wanted */
+										/* ResizeRedirectMask | Redirect resize of this window */
+										/* SubstructureNotifyMask | Substructure notification wanted */
+										/* SubstructureRedirectMask | Redirect structure requests on children */
+										/* FocusChangeMask | Any change in input focus wanted */
+										/* PropertyChangeMask | Any change in property wanted */
+										/* ColormapChangeMask | Any change in colormap wanted */
+										/* OwnerGrabButtonMask; Automatic grabs should activate with owner_events set to True */
+	}
+
+	ret->_dpy->_atr[1].background_pixel = back;
+
+	ret->_dpy = wnd->_dpy;
+	ret->_wnd = XCreateWindow(ret->_dpy->_dpy, wnd->_wnd, x, y, width, height, 0,
+								ret->_dpy->_vfo[1].depth, InputOutput,
+								ret->_dpy->_vfo[1].visual, CWColormap |
+								CWBorderPixel | CWBackPixel |
+								CWEventMask, &ret->_dpy->_atr[1]);
+
+	ret->_stat &= SCN_WINDOW;
+
+	ret->_glc = glXCreateContext(ret->_dpy->_dpy, &ret->_dpy->_vfo[1], 0, True);
+	if(!ret->_glc) {
+		OSPFre(&ret->_obj);
+		return 0;
+	}
+
+	ret->_x = x;
+	ret->_y = y;
+	ret->_w = width;
+	ret->_h = height;
+
+	ret->_mtr = wnd;
+	ret->_nxt = wnd->_slv;
+	ret->_prv = wnd->_slv ? wnd->_slv->_prv : 0;
+	if(ret->_nxt) ret->_nxt->_prv = (OSPwindow *) ret;
+	if(ret->_prv) ret->_prv->_nxt = (OSPwindow *) ret;
+	wnd->_slv = (OSPwindow *) ret;
+	while(wnd->_slv->_prv) wnd->_slv = wnd->_slv->_prv;
+
+	XMapWindow(ret->_dpy->_dpy, ret->_wnd);
+
+	OSPRun(&ret->_obj, OSPSCN_FOCUS);
+
+	return ret;
+}
+
+#undef SCN_WINDOW
 
 #define SHM_ATTR	0x01
 #define SHM_ALLOC	0x02
@@ -629,8 +822,8 @@ OSPimage *OSPImg(void *from, int width, int height) {
 		return 0;
 	}
 
-	ret->_img = XShmCreateImage(ret->_dpy->_dpy, ret->_dpy->_vfo.visual,
-								ret->_dpy->_vfo.depth, ZPixmap, 0, &ret->_shm,
+	ret->_img = XShmCreateImage(ret->_dpy->_dpy, ret->_dpy->_vfo[0].visual,
+								ret->_dpy->_vfo[0].depth, ZPixmap, 0, &ret->_shm,
 								width, height);
 
 	if(ret->_img) {
@@ -673,8 +866,8 @@ OSPimage *OSPImg(void *from, int width, int height) {
 		ret->_stat |= SHM_ALLOC;
 	}
 	else {
-		ret->_img = XCreateImage(ret->_dpy->_dpy, ret->_dpy->_vfo.visual,
-								ret->_dpy->_vfo.depth, ZPixmap, 0, 0,
+		ret->_img = XCreateImage(ret->_dpy->_dpy, ret->_dpy->_vfo[0].visual,
+								ret->_dpy->_vfo[0].depth, ZPixmap, 0, 0,
 								width, height, 32, 0);
 
 		if(!ret->_img) {
