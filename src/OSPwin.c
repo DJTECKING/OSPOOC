@@ -260,6 +260,7 @@ void OSPWndHdl(OSPobj **obj) {
 #ifdef OSP_XDBE_SUPPORT
 	XdbeDeallocateBackBufferName(wnd->_dpy->_dpy, wnd->_bbf);
 #endif
+
 	XFreeGC(wnd->_dpy->_dpy, wnd->_gc);
 	XUnmapWindow(wnd->_dpy->_dpy, wnd->_wnd);
 	XDestroyWindow(wnd->_dpy->_dpy, wnd->_wnd);
@@ -430,10 +431,6 @@ void OSPwnd_getkey(OSPobj *obj, va_list arg) {
 
 		wnd->_dpy->_Keypad[it + 32] = ret[it];
 	}
-
-	OSPrint(1, "OSPwnd_getkey : Got key from "
-				"connection %d by window %d",
-				wnd->_wnd, XConnectionNumber(wnd->_dpy->_dpy));
 }
 
 void OSPwnd_getbtn(OSPobj *obj, va_list arg) {
@@ -442,10 +439,6 @@ void OSPwnd_getbtn(OSPobj *obj, va_list arg) {
 
 	ret[0] = wnd->_btn;
 	wnd->_btn = (wnd->_btn << 8) | (wnd->_btn & 0x00FF);
-
-	OSPrint(1, "OSPwnd_getbtn : Got button from "
-				"window %d on connection %d",
-				wnd->_wnd, XConnectionNumber(wnd->_dpy->_dpy));
 }
 
 #ifdef OSP_XDBE_SUPPORT
@@ -599,10 +592,6 @@ void OSPscn_swap(OSPobj *obj, va_list arg) {
 	OSPscene *scn = (OSPscene *) obj;
 
 	glXSwapBuffers(scn->_dpy->_dpy, scn->_wnd);
-
-	OSPrint(1, "OSPwnd_swap : Swapped Scene %d "
-				"on connection %d",
-				scn->_wnd, XConnectionNumber(scn->_dpy->_dpy));
 }
 
 void OSPscn_focus(OSPobj *obj, va_list arg) {
@@ -611,14 +600,65 @@ void OSPscn_focus(OSPobj *obj, va_list arg) {
 	glXMakeCurrent(scn->_dpy->_dpy, scn->_wnd, scn->_glc);
 }
 
+void OSPscn_look(OSPobj *obj, va_list arg) {
+	double side[3], matrix[16] = {0};
+
+	double eyePosition3D[3] = {va_arg(arg, double),
+							va_arg(arg, double),
+							va_arg(arg, double)};
+	double center3D[3] = {va_arg(arg, double),
+							va_arg(arg, double),
+							va_arg(arg, double)};
+	double upVector3D[3] = {va_arg(arg, double),
+							va_arg(arg, double),
+							va_arg(arg, double)};
+
+	double forward[3] = {center3D[0] - eyePosition3D[0],
+							center3D[1] - eyePosition3D[1],
+							center3D[2] - eyePosition3D[2]};
+
+	double normal = sqrt((forward[0] * forward[0]) +
+						(forward[1] * forward[1]) +
+						(forward[2] * forward[2]));
+
+	forward[0] /= normal;
+	forward[1] /= normal;
+	forward[2] /= normal;
+
+	side[0] = (forward[1] * upVector3D[2]) - (forward[2] * upVector3D[1]);
+	side[1] = (forward[2] * upVector3D[0]) - (forward[0] * upVector3D[2]);
+	side[2] = (forward[0] * upVector3D[1]) - (forward[1] * upVector3D[0]);
+
+	normal = sqrt((side[0] * side[0]) +
+					(side[1] * side[1]) +
+					(side[2] * side[2]));
+
+	side[0] /= normal;
+	side[1] /= normal;
+	side[2] /= normal;
+
+	upVector3D[0] = (side[1] * forward[2]) - (side[2] * forward[1]);
+	upVector3D[1] = (side[2] * forward[0]) - (side[0] * forward[2]);
+	upVector3D[2] = (side[0] * forward[1]) - (side[1] * forward[0]);
+
+	matrix[0] = -side[0];	matrix[1] = upVector3D[0];	matrix[2] = -forward[0];	matrix[3] = 0.0;
+	matrix[4] = -side[1];	matrix[5] = upVector3D[1];	matrix[6] = -forward[1];	matrix[7] = 0.0;
+	matrix[8] = -side[2];	matrix[9] = upVector3D[2];	matrix[10] = -forward[2];	matrix[11] = 0.0;
+	matrix[12] = 0.0;		matrix[13] = 0.0;	matrix[14] = 0.0;			matrix[15] = 1.0;
+
+	glMultMatrixd(matrix);
+	glTranslated(-eyePosition3D[0], -eyePosition3D[1], -eyePosition3D[2]);
+}
+
 OSPctr *OSPScnCtr() {
 	static OSPctr *ret = 0;
 
 	if(ret) return ret;
-	ret = OSPCtr(OSPWndCtr(), 5, sizeof(OSPscene), OSPScnHdl);
+	ret = OSPCtr(OSPWndCtr(), 6, sizeof(OSPscene), OSPScnHdl);
 
 	ret->_fct[OSPWND_SWAP] = OSPscn_swap;
 	ret->_fct[OSPSCN_FOCUS] = OSPscn_focus;
+	ret->_fct[OSPSCN_LOOK] = OSPscn_look;
 
 	return ret;
 }
@@ -666,7 +706,7 @@ OSPscene *OSPScn(OSPwindow *wnd, int x, int y, int width, int height, uint32_t b
 			XVisualInfo *vi = glXGetVisualFromFBConfig(ret->_dpy->_dpy, fbc[idx]);
 
 			if(vi) {
-				int samp_buf, samples;
+				int samples;
 				glXGetFBConfigAttrib(ret->_dpy->_dpy, fbc[idx], GLX_SAMPLES, &samples);
 
 				if(samples > best_num_samp) {

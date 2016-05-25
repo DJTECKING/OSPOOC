@@ -24,7 +24,7 @@ $(TARGET): $(OBJECTS)
 
 demo: $(TARGET) demo/ball.c demo/cube.c
 	$(CC) $(IFLAGS) -o bin/ball demo/ball.c $(EFLAGS) -lm $(EXTFLS)
-	$(CC) $(IFLAGS) -o bin/cube demo/cube.c $(EFLAGS) -lGL
+	$(CC) $(IFLAGS) -o bin/cube demo/cube.c $(EFLAGS) -lm -lGL
 
 clean:
 	rm -r */*.o */*.so bin/*

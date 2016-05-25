@@ -18,10 +18,11 @@
 #include<X11/extensions/XShm.h>
 #include<GL/gl.h>
 #include<GL/glx.h>
-#include<GL/glxext.h>			/* For ??? */
+#include<GL/glxext.h>			/* For V-sync */
 #include<sys/ipc.h>
 #include<sys/shm.h>
 #include<sys/stat.h>
+#include<sys/time.h>
 #include<sys/epoll.h>
 #include<sys/types.h>
 #include<sys/socket.h>

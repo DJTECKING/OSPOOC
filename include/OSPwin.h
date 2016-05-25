@@ -10,6 +10,7 @@
 #define OSPWND_GETBTN			2
 #define OSPWND_SWAP				3
 #define OSPSCN_FOCUS			4
+#define OSPSCN_LOOK				5
 
 #define OSPIMG_GETDATA			0
 
