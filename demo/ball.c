@@ -60,7 +60,7 @@ int main(int argc, char *argv[]) {
 
 	for(y = 0; y < HEIGHT; y++) {
 		for(x = 0; x < WIDTH; x++) {
-			img->_data[y][x] = 0xFF000000;
+			img->_data[y][x] = 0x00000000;
 		}
 	}
 
@@ -179,7 +179,7 @@ int main(int argc, char *argv[]) {
 
 			/* Buttons interactions */
 			if((btn & 0x0101) == 0x0001) {
-				ball_yd -= 3;
+				ball_yd *= 3;
 			}
 
 			if((btn & 0x0404) == 0x0004) {

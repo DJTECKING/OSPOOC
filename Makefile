@@ -22,9 +22,10 @@ $(TARGET): $(OBJECTS)
 %.o: %.c
 	$(CC) $(IFLAGS) $(CFLAGS) -o $@ $< $(DFLAGS)
 
-demo: $(TARGET) demo/ball.c demo/cube.c
+demo: $(TARGET) demo/ball.c demo/cube.c demo/banana_crush_saga/banana_crush_saga.c
 	$(CC) $(IFLAGS) -o bin/ball demo/ball.c $(EFLAGS) -lm $(EXTFLS)
 	$(CC) $(IFLAGS) -o bin/cube demo/cube.c $(EFLAGS) -lm -lGL
+	$(CC) $(IFLAGS) -o bin/banana_crush_saga demo/banana_crush_saga/banana_crush_saga.c $(EFLAGS) -lm $(EXTFLS)
 
 clean:
 	rm -r */*.o */*.so bin/*
