@@ -309,6 +309,8 @@ void OSPwnd_event(OSPobj *obj, va_list arg) {
 		case ButtonPress:
 		case ButtonRelease:
 			wnd->_btn = (wnd->_btn << 8) | (wnd->_btn & 0x00FF);
+			wnd->_msx = wnd->_dpy->_lst.xbutton.x;
+			wnd->_msy = wnd->_dpy->_lst.xbutton.y;
 
 			if(wnd->_dpy->_lst.type == ButtonPress) {
 				wnd->_btn |= 1 << (wnd->_dpy->_lst.xbutton.button - 1);
@@ -844,6 +846,11 @@ OSPimage *OSPImg(void *from, int width, int height) {
 	char *datptr;
 	int idx;
 
+	if(!(width && height)) {
+		OSPrint(0, "OSPImg : Width and height must be not null");
+		return 0;
+	}
+
 	if(from) {
 		if(((OSPobj *) from)->_fct == OSPDpyCtr()->_fct) {
 			ret->_dpy = (OSPdisplay *) from;
@@ -1095,4 +1102,253 @@ void OSPBlit(void *orig, void *dest, int x_orig, int y_orig,
 #undef SHM_ATTR
 #undef SHM_ALLOC
 #undef SHM_ATTCH
+
+typedef struct {
+	uint8_t _id_size;
+	uint8_t _colormap_type;
+	uint8_t _image_type;
+
+	uint8_t _colormap_start_l;
+	uint8_t _colormap_start_h;
+	uint8_t _colormap_length_l;
+	uint8_t _colormap_length_h;
+	uint8_t _colormap_depth;
+
+	uint8_t _x_orig_l;
+	uint8_t _x_orig_h;
+	uint8_t _y_orig_l;
+	uint8_t _y_orig_h;
+	uint8_t _x_size_l;
+	uint8_t _x_size_h;
+	uint8_t _y_size_l;
+	uint8_t _y_size_h;
+	uint8_t _bit_per_sample;
+	uint8_t _descriptor;
+} tga_header_t;
+
+OSPimage *OSPImgLoad(void *context, const char *name, int *fd) {
+	int file;
+	uint64_t idx = 0;
+	uint64_t size;
+	uint16_t x;
+	uint16_t y;
+
+	tga_header_t header;
+	OSPimage *ret;
+
+	if(name) file = open(name, O_RDWR);
+	else if(fd) file = fd[0];
+	else {
+		OSPrint(0, "OSPImgLoad : Valid path or valid file descriptor pointer needed");
+		return 0;
+	}
+
+	if(file < 0) {
+		OSPrint(0, "OSPImgLoad : Unable to open %s : %s", name, strerror(errno));
+		return 0;
+	}
+
+#ifdef __BIG_ENDIAN__
+	idx = 1;
+
+	if(read(file, &header._id_size, 1) != 1) idx = 0;
+	if(!idx && (read(file, &header._colormap_type, 1) != 1)) idx = 0;
+	if(!idx && (read(file, &header._image_type, 1) != 1)) idx = 0;
+
+	if(!idx && (read(file, &header._colormap_start_l, 1) != 1)) idx = 0;
+	if(!idx && (read(file, &header._colormap_start_h, 1) != 1)) idx = 0;
+	if(!idx && (read(file, &header._colormap_length_l, 1) != 1)) idx = 0;
+	if(!idx && (read(file, &header._colormap_length, 1) != 1)) idx = 0;
+	if(!idx && (read(file, &header._colormap_depth, 1) != 1)) idx = 0;
+
+	if(!idx && (read(file, &header._x_orig_l, 1) != 1)) idx = 0;
+	if(!idx && (read(file, &header._x_orig_h, 1) != 1)) idx = 0;
+	if(!idx && (read(file, &header._y_orig_l, 1) != 1)) idx = 0;
+	if(!idx && (read(file, &header._y_orig_h, 1) != 1)) idx = 0;
+	if(!idx && (read(file, &header._x_size_l, 1) != 1)) idx = 0;
+	if(!idx && (read(file, &header._x_size_h, 1) != 1)) idx = 0;
+	if(!idx && (read(file, &header._y_size_l, 1) != 1)) idx = 0;
+	if(!idx && (read(file, &header._y_size_h, 1) != 1)) idx = 0;
+
+	if(!idx && (read(file, &header._bit_per_sample, 1) != 1)) idx = 0;
+	if(!idx && (read(file, &header._descriptor, 1) != 1)) idx = 0;
+#else
+	while(idx < 18) {
+		int rem = read(file, &((uint8_t *) &header)[idx], 18 - idx);
+
+		if(rem < 0) {
+			idx = 0;
+			break;
+		}
+
+		idx += rem;
+	}
+#endif
+
+	x = header._x_size_l | (header._x_size_h << 8);
+	y = header._y_size_l | (header._y_size_h << 8);
+
+	if(!idx) {
+		close(file);
+		OSPrint(0, "OSPImgLoad : Unable to read header : %s", strerror(errno));
+		return 0;
+	}
+
+	if(header._id_size) {
+		close(file);
+		OSPrint(0, "OSPImgLoad : Id not allowed on tga files TODO");
+		return 0;
+	}
+
+	if(header._colormap_type) {
+		close(file);
+		OSPrint(0, "OSPImgLoad : Palette not allowed on tga files TODO");
+		return 0;
+	}
+
+	if((header._image_type != 2) ||
+			(header._bit_per_sample != 32) ||
+			((header._descriptor & 0x0F) != 0x08)) {
+
+		close(file);
+		OSPrint(0, "OSPImgLoad : Only truecolor 32 bits allowed on tga files TODO");
+		return 0;
+	}
+
+	if((header._descriptor & 0xF0) != 0x20) {
+		close(file);
+		OSPrint(0, "OSPImgLoad : Pixel must start form the upper-left corner "
+					"and no interleaving can appear on tga files TODO");
+		return 0;
+	}
+
+	if(!(x && y)) {
+		close(file);
+		OSPrint(0, "OSPImgLoad : Both width and height cannot be 0");
+		return 0;
+	}
+
+	ret = OSPImg(context, x, y);
+
+	if(!ret) return 0;
+
+	size = x * y * 4;
+	idx = 0;
+
+	while(idx < size) {
+		int rem = read(file, &ret->_img->data[idx], size - idx);
+
+		if(rem < 0) {
+			close(file);
+			OSPrint(0, "OSPImgLoad : Unable to read image content : %s", strerror(errno));
+			return 0;
+		}
+
+		idx += rem;
+	}
+
+	if(fd) fd[0] = file;
+	else close(fd);
+
+	return ret;
+}
+
+int OSPImgSave(OSPimage *img, int fd) {
+	uint64_t idx = 0;
+	uint64_t size;
+	tga_header_t header;
+
+	if(!img) {
+		OSPrint(0, "OSPImgBlit : First argument needed");
+		return -1;
+	}
+
+	if(img->_obj._fct != OSPImgCtr()->_fct) {
+		OSPrint(0, "OSPImgBlit : First argument isn't an image");
+		return -1;
+	}
+
+	header._id_size = 0;
+
+	header._colormap_type = 0;
+	header._colormap_start_l = 0;
+	header._colormap_start_h = 0;
+	header._colormap_length_l = 0;
+	header._colormap_length_h = 0;
+	header._colormap_depth = 0;
+
+	header._image_type = 2;
+	header._bit_per_sample = 32;
+	header._descriptor = 0x28;
+
+	header._x_orig_l = 0;
+	header._x_orig_h = 0;
+	header._y_orig_l = 0;
+	header._y_orig_h = 0;
+	header._x_size_l = img->_img->width;
+	header._x_size_h = img->_img->width >> 8;
+	header._y_size_l = img->_img->height;
+	header._y_size_h = img->_img->height >> 8;
+
+	size = img->_img->width * img->_img->height * 4;
+
+#ifdef __BIG_ENDIAN__
+	if(!idx && (write(fd, &header._colormap_type, 1) != 1)) idx = 1;
+	if(!idx && (write(fd, &header._image_type, 1) != 1)) idx = 1;
+	if(!idx && (write(fd, &header._colormap_start_l, 1) != 1)) idx = 1;
+	if(!idx && (write(fd, &header._colormap_start_h, 1) != 1)) idx = 1;
+	if(!idx && (write(fd, &header._colormap_length_l, 1) != 1)) idx = 1;
+	if(!idx && (write(fd, &header._colormap_length_h, 1) != 1)) idx = 1;
+	if(!idx && (write(fd, &header._colormap_depth, 1) != 1)) idx = 1;
+
+	if(!idx && (write(fd, &header._x_orig_l, 1) != 1)) idx = 1;
+	if(!idx && (write(fd, &header._x_orig_h, 1) != 1)) idx = 1;
+	if(!idx && (write(fd, &header._y_orig_l, 1) != 1)) idx = 1;
+	if(!idx && (write(fd, &header._y_orig_h, 1) != 1)) idx = 1;
+	if(!idx && (write(fd, &header._x_size_l, 1) != 1)) idx = 1;
+	if(!idx && (write(fd, &header._x_size_h, 1) != 1)) idx = 1;
+	if(!idx && (write(fd, &header._y_size_l, 1) != 1)) idx = 1;
+	if(!idx && (write(fd, &header._y_size_h, 1) != 1)) idx = 1;
+
+	if(!idx && (write(fd, &header._bit_per_sample, 1) != 1)) idx = 1;
+	if(!idx && (write(fd, &header._descriptor, 1) != 1)) idx = 1;
+#else
+	for(idx = 0; idx < 18; idx++) {
+			printf("%02X ", ((uint8_t *) &header)[idx]);
+	}
+
+	printf("\n"); idx = 0;
+
+	while(idx < 18) {
+		int rem = write(fd, &((uint8_t *) &header)[idx], 18 - idx);
+
+		if(rem < 0) {
+			idx = 0;
+			break;
+		}
+
+		idx += rem;
+	}
+#endif
+
+	if(!idx) {
+		OSPrint(0, "OSPImgSave : Unable to write header : %s", strerror(errno));
+		return -1;
+	}
+
+	idx = 0;
+
+	while(idx < size) {
+		int rem = write(fd, &img->_img->data[idx], size - idx);
+
+		if(rem < 0) {
+			OSPrint(0, "OSPImgSave : Unable to write image content : %s", strerror(errno));
+			return -1;
+		}
+
+		idx += rem;
+	}
+
+	return 0;
+}
 

@@ -1,8 +1,8 @@
 #include"OSPlib.h"
 #include"banana.h"
 
-#define WIDTH	8
-#define HEIGHT	10
+#define WIDTH	20
+#define HEIGHT	20
 #define SIZE	64
 
 uint32_t cursor_data[64][64] = {
@@ -87,10 +87,13 @@ typedef struct cell_s {
 } cell_t;
 
 void gencell(cell_t *cell) {
-	int corresp[13] = {
-		1,
+	int corresp[16] = {
+		2,
+		2,
 		2,
 
+		0x0F,
+		0x0F,
 		0x0F,
 		0x03,
 		0x0C,
@@ -106,7 +109,8 @@ void gencell(cell_t *cell) {
 		0x07
 	};
 
-	cell->_id = corresp[rand() % 13];
+	if(cell->_id) return;
+	cell->_id = corresp[rand() & 0x0F];
 }
 
 uint32_t genpix(float red, float green, float blue) {
@@ -128,10 +132,13 @@ uint32_t genpix(float red, float green, float blue) {
 	return pix | 0xFF000000;
 }
 
+OSPimage *texture(void *context, char *path) {
+	static OSPimage *ret = 0;
+	return context && path ? ret = OSPImgLoad(context, path, 0) : ret;
+}
+
 void drawcell(OSPwindow *wnd, OSPimage *img, cell_t *cell,
 				int curx, int cury) {
-	static OSPimage *cursor = 0;
-
 	int x = cell->_x;
 	int y = cell->_y;
 	int lx = -(SIZE >> 1);
@@ -150,23 +157,6 @@ void drawcell(OSPwindow *wnd, OSPimage *img, cell_t *cell,
 
 	ex = x + SIZE;
 	ey = y + SIZE;
-
-	if(!cursor) {
-		cursor = OSPImg(wnd, SIZE, SIZE * 7);
-
-		if(cursor) {
-			for(y = 0; y < SIZE * 7; y++) {
-				for(x = 0; x < SIZE; x++) {
-					if(y < SIZE) {
-						cursor->_data[y][x] = cursor_data[x][y];
-					}
-					else {
-						cursor->_data[y][x] = banana_data[y - SIZE][x];
-					}
-				}
-			}
-		}
-	}
 
 	for(y = ey - SIZE; y < ey; y++) {
 		for(x = ex - SIZE; x < ex; x++) {
@@ -187,18 +177,18 @@ void drawcell(OSPwindow *wnd, OSPimage *img, cell_t *cell,
 	switch(cell->_id) {
 	case 1:
 	case 2:
-		OSPBlit(cursor, img, 0, SIZE * cell->_id, x, y, SIZE, SIZE);
+		OSPBlit(texture(0, 0), img, 0, SIZE * cell->_id, x, y, SIZE, SIZE);
 		break;
 	default:
 		ey = 3;
 		for(ex = 0x01; ex & 0x0F; ex <<= 1) {
-			if(cell->_id & ex) OSPBlit(cursor, img, 0, SIZE * ey, x, y, SIZE, SIZE);
+			if(cell->_id & ex) OSPBlit(texture(0, 0), img, 0, SIZE * ey, x, y, SIZE, SIZE);
 			ey++;
 		}
 	}
 
-	if(selected && cursor) {
-		OSPBlit(cursor, img, 0, 0, x, y, SIZE, SIZE);
+	if(selected) {
+		OSPBlit(texture(0, 0), img, 0, 0, x, y, SIZE, SIZE);
 	}
 
 	OSPBlit(img, wnd, x, y, x, y, SIZE, SIZE);
@@ -236,7 +226,7 @@ int check(cell_t *cell, cell_t **shortest) {
 		if(celldir) {
 			switch(celldir->_id) {
 			case 2:
-				if(cell->_id & dir) {
+				if((cell->_id == 1) || (cell->_id & dir)) {
 					celldir->_path = cell->_path + 1;
 
 					if(!shortest[0] || !shortest[0]->_path ||
@@ -250,7 +240,7 @@ int check(cell_t *cell, cell_t **shortest) {
 				break;
 
 			default:
-				if(((cell->_id & dir) || (cell->_id == 1)) &&
+				if(((cell->_id == 1) || (cell->_id & dir)) &&
 					((celldir->_path > cell->_path + 1) || !celldir->_path) &&
 					(celldir->_id & opdir)) {
 
@@ -324,15 +314,6 @@ cell_t *resolve(cell_t cell[WIDTH][HEIGHT]) {
 				result[0]->_path = 1;
 
 				if(check(result[0], &result[1])) {
-					printf("----------------\n");
-					for(y = 0; y < HEIGHT; y++) {
-						for(x = 0; x < WIDTH; x++) {
-							printf("%1X%1X", cell[x][y]._path, cell[x][y]._id);
-						}
-
-						printf("\n");
-					}
-
 					trace(result[1]);
 
 					for(y = 0; y < HEIGHT; y++) {
@@ -344,7 +325,7 @@ cell_t *resolve(cell_t cell[WIDTH][HEIGHT]) {
 					return result[0];
 				}
 				else {
-					cell[x][y]._id = 0;
+					cell[x][y]._path = 0;
 				}
 			}
 		}
@@ -358,7 +339,8 @@ int main(int argc, char *argv[]) {
 	OSPimage *img;
 	OSPobj *trig;
 	cell_t cell[WIDTH][HEIGHT] = {{{0}}};
-	
+	char texpath[50] = "demo/banana_crush_saga/banana_default_texture.tga";
+
 	int x;
 	int y;
 	int cx = 0;
@@ -366,6 +348,7 @@ int main(int argc, char *argv[]) {
 	int run = 1;
 	int tmo = 16;
 	int fall = 1;
+	cell_t *start;
 
 	enum {
 		MENU,
@@ -377,6 +360,8 @@ int main(int argc, char *argv[]) {
 
 	OSPrint(2, 0);
 	srand(time(0));
+
+	if(argc > 1) strcpy(texpath, argv[1]);
 
 	/* Create objects */
 	wnd = OSPWnd(0, "Banana crush saga!!!", 0, 0, WIDTH * SIZE, HEIGHT * SIZE, 0x00000000);
@@ -392,6 +377,14 @@ int main(int argc, char *argv[]) {
 		OSPFre(0);
 		return 0;
 	}
+
+	if(!texture(wnd, texpath)) {
+		printf("Unable to load %s : %s\n", texpath, strerror(errno));
+		OSPFre(0);
+		return 0;
+	}
+
+	cell[rand() % WIDTH][rand() % HEIGHT]._id = 1;
 
 	/* Filling array */
 	for(y = 0; y < HEIGHT; y++) {
@@ -412,11 +405,14 @@ int main(int argc, char *argv[]) {
 		}
 	}
 
-	sleep(1);
-
 #ifdef OSP_XDBE_SUPPORT
 	OSPRun(&wnd->_obj, OSPWND_SWAP);
 #endif
+
+	if(start = resolve(cell)) {
+		tmo = 10;
+		state = RUN;
+	}
 
 	/* Main loop */
 	while(run) {
@@ -428,7 +424,6 @@ int main(int argc, char *argv[]) {
 		}
 		else{
 			uint16_t btn;
-			cell_t *start;
 
 			switch(state) {
 			case CHOOSE:
@@ -451,8 +446,8 @@ int main(int argc, char *argv[]) {
 							state = RUN;
 						}
 						else {
-//							cell[cx][cy]._id = cell[lcx][lcy]._id;
-//							cell[lcx][lcy]._id = lid;
+							cell[cx][cy]._id = cell[lcx][lcy]._id;
+							cell[lcx][lcy]._id = lid;
 						}
 					}
 
@@ -471,7 +466,7 @@ int main(int argc, char *argv[]) {
 					OSPRun(&wnd->_obj, OSPWND_SWAP);
 #endif
 				}
-				if((btn & 0x0404) == 0x0004) {
+				if((btn & 0x0404) == 0x0404) {
 					cx = wnd->_msx / SIZE;
 					cy = wnd->_msy / SIZE;
 					cell[cx][cy]._id = 0;

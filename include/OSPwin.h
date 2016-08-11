@@ -113,5 +113,8 @@ OSPimage *OSPImg(void *, int, int);
 
 void OSPBlit(void *, void *, int, int, int, int, unsigned int, unsigned int);
 
+OSPimage *OSPImgLoad(void *, const char *, int *);
+int OSPImgSave(OSPimage *, int);
+
 #endif /* __OSPWIN_H__ */
 
