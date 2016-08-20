@@ -1248,7 +1248,7 @@ OSPimage *OSPImgLoad(void *context, const char *name, int *fd) {
 	}
 
 	if(fd) fd[0] = file;
-	else close(fd);
+	else close(file);
 
 	return ret;
 }
