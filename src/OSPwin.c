@@ -392,6 +392,9 @@ void OSPwnd_event(OSPobj *obj, va_list arg) {
 			OSPrint(1, "OSPwnd_event : Window %d on connection %d "
 						"got exposed", wnd->_wnd,
 						XConnectionNumber(wnd->_dpy->_dpy));
+#ifdef OSP_XDBE_SUPPORT
+			OSPRun(&wnd->_obj, OSPWND_SWAP);
+#endif
 			break;
 
 		case DestroyNotify:
@@ -1259,12 +1262,12 @@ int OSPImgSave(OSPimage *img, int fd) {
 	tga_header_t header;
 
 	if(!img) {
-		OSPrint(0, "OSPImgBlit : First argument needed");
+		OSPrint(0, "OSPImgSave : First argument needed");
 		return -1;
 	}
 
 	if(img->_obj._fct != OSPImgCtr()->_fct) {
-		OSPrint(0, "OSPImgBlit : First argument isn't an image");
+		OSPrint(0, "OSPImgSave : First argument isn't an image");
 		return -1;
 	}
 

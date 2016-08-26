@@ -1,7 +1,5 @@
 #include"OSPlib.h"
 
-#define WIDTH	8
-#define HEIGHT	10
 #define SIZE	64
 
 typedef struct cell_s {
@@ -17,9 +15,10 @@ typedef struct cell_s {
 	int _id;
 	int _path;
 	int _solv;
+	int _prop;
 } cell_t;
 
-void gencell(cell_t *cell) {
+void gencell(cell_t *cell, uint32_t *seed) {
 	int corresp[16] = {
 		2,
 		2,
@@ -43,7 +42,7 @@ void gencell(cell_t *cell) {
 	};
 
 	if(cell->_id) return;
-	cell->_id = corresp[rand() & 0x0F];
+	cell->_id = corresp[RANDOM(*seed) & 0x0F];
 }
 
 uint32_t genpix(float red, float green, float blue) {
@@ -71,7 +70,7 @@ OSPimage *texture(void *context, char *path) {
 }
 
 void drawcell(OSPwindow *wnd, OSPimage *img, cell_t *cell,
-				int curx, int cury) {
+				int curx, int cury, uint32_t *seed) {
 	int x = cell->_x;
 	int y = cell->_y;
 	int lx = -(SIZE >> 1);
@@ -120,6 +119,9 @@ void drawcell(OSPwindow *wnd, OSPimage *img, cell_t *cell,
 			if(cell->_id & ex) OSPBlit(texture(0, 0), img, SIZE * ey, SIZE, x, y, SIZE, SIZE);
 			ey++;
 		}
+
+		if(!(RANDOM(*seed) % 3)) OSPBlit(texture(0, 0), img, (RANDOM(*seed) % 4) * SIZE,
+													((RANDOM(*seed) % 2) + 4) * SIZE, x, y, SIZE, SIZE);
 
 	case 0:;
 	}
@@ -243,14 +245,14 @@ void trace(cell_t *root) {
 	}
 }
 
-cell_t *resolve(cell_t cell[WIDTH][HEIGHT]) {
+cell_t *resolve(cell_t **cell, int sx, int sy) {
 	int x;
 	int y;
 
 	cell_t *result[2] = {0};
 
-	for(y = 0; y < HEIGHT; y++) {
-		for(x = 0; x < WIDTH; x++) {
+	for(y = 0; y < sy; y++) {
+		for(x = 0; x < sx; x++) {
 			if(cell[x][y]._id == 1) {
 				result[0] = &cell[x][y];
 				result[0]->_path = 1;
@@ -258,8 +260,8 @@ cell_t *resolve(cell_t cell[WIDTH][HEIGHT]) {
 				if(check(result[0], &result[1])) {
 					trace(result[1]);
 
-					for(y = 0; y < HEIGHT; y++) {
-						for(x = 0; x < WIDTH; x++) {
+					for(y = 0; y < sy; y++) {
+						for(x = 0; x < sx; x++) {
 							cell[x][y]._path = 0;
 						}
 					}
@@ -276,21 +278,21 @@ cell_t *resolve(cell_t cell[WIDTH][HEIGHT]) {
 	return 0;
 }
 
-cell_t *find(cell_t cell[WIDTH][HEIGHT]) {
+cell_t *find(cell_t **cell, int sx, int sy) {
 	int x;
 	int y;
 
 	cell_t *result = 0;
 
-	for(y = 0; y < HEIGHT; y++) {
-		for(x = 0; x < WIDTH; x++) {
+	for(y = 0; y < sy; y++) {
+		for(x = 0; x < sx; x++) {
 			if(cell[x][y]._id == 1) {
 				result = &cell[x][y];
 				result->_path = 1;
 
 				if(check(result, 0)) {
-					for(y = 0; y < HEIGHT; y++) {
-						for(x = 0; x < WIDTH; x++) {
+					for(y = 0; y < sy; y++) {
+						for(x = 0; x < sx; x++) {
 							cell[x][y]._path = 0;
 						}
 					}
@@ -307,12 +309,12 @@ cell_t *find(cell_t cell[WIDTH][HEIGHT]) {
 	return 0;
 }
 
-void shake(cell_t cell[WIDTH][HEIGHT]) {
+void shake(cell_t **cell, int sx, int sy, uint32_t *seed) {
 	cell_t *array = &cell[0][0];
 	int pcs[16] = {0};
 	int newpdx = 0x03;
 	int pnb = 0;
-	int size = WIDTH * HEIGHT;
+	int size = sx * sy;
 	int idx;
 	int x;
 	int y;
@@ -329,7 +331,7 @@ void shake(cell_t cell[WIDTH][HEIGHT]) {
 		while(!pcs[newpdx]) newpdx++;
 		pcs[newpdx]--;
 
-		idx = (idx + rand()) % size;
+		idx = (idx + RANDOM(*seed)) % size;
 		while(array[idx]._id != 4) idx = (idx + 1) % size;
 		array[idx]._id = newpdx;
 	}
@@ -339,17 +341,21 @@ int main(int argc, char *argv[]) {
 	OSPwindow *wnd;
 	OSPimage *img;
 	OSPobj *trig;
-	cell_t cell[WIDTH][HEIGHT] = {{{0}}};
+	cell_t **cell = 0;
 	char texpath[50] = "demo/banana_crush_saga/banana_default_texture.tga";
 
 	int x;
 	int y;
 	int cx = 0;
 	int cy = 0;
+	int sx = 0;
+	int sy = 0;
 	int run = 1;
 	int tmo = 16;
 	int process = 1;
 	int redraw = 0;
+	int level = -1;
+	uint32_t seed = time(0);
 	cell_t *start;
 
 	enum {
@@ -359,60 +365,87 @@ int main(int argc, char *argv[]) {
 		RUN,
 		FALL,
 		FIND
-	} state = CHOOSE;
+	} state = FIND;
 
 	OSPrint(2, 0);
 	srand(time(0));
 
-	if(argc > 1) strcpy(texpath, argv[1]);
+	if(argc != 2) {
+		printf("Need level\n");
+		return -1;
+	}
 
-	/* Create objects */
-	wnd = OSPWnd(0, "Banana crush saga!!!", 0, 0, WIDTH * SIZE, HEIGHT * SIZE, 0x00000000);
+	if((level = open(argv[1], O_RDONLY)) < 0) {
+		printf("Unable to load level %s : %s\n", argv[1], strerror(errno));
+		OSPFre(0);
+		return -1;
+	}
+
+	{
+		char *filler = texpath;
+		char input;
+
+		while((read(level, &input, 1) == 1) && (input != '\n')) *(filler++) = input;
+		if(filler - texpath) filler[0] = 0;
+
+		while((read(level, &input, 1) == 1)) {
+			if(input == '\n') sy++;
+			if(!sy) sx++;
+		}
+
+		if(lseek(level, filler - texpath, SEEK_SET) < 0) {
+			close(level);
+			printf("Unable to jump to %s datas : %s\n", level, strerror(errno));
+			OSPFre(0);
+			return -1;
+		}
+	}
+
+	cell = (cell_t **) OSPArray(sizeof(cell_t), sx, sy, 0);
+
+	wnd = OSPWnd(0, "Banana crush saga!!!", 0, 0, sx * SIZE, sy * SIZE, 0x00000000);
 
 	if(!wnd) {
 		OSPFre(0);
-		return 0;
+		return -1;
 	}
 
-	img = OSPImg(wnd, WIDTH * SIZE, HEIGHT * SIZE);
+	img = OSPImg(wnd, sx * SIZE, sy * SIZE);
 
 	if(!img) {
 		OSPFre(0);
-		return 0;
+		return -1;
 	}
 
 	if(!texture(wnd, texpath)) {
+		close(level);
 		printf("Unable to load %s : %s\n", texpath, strerror(errno));
 		OSPFre(0);
-		return 0;
+		return -1;
 	}
 
-	cell[rand() % WIDTH][rand() % HEIGHT]._id = 1;
+	cell[RANDOM(seed) % sx][RANDOM(seed)  % sy]._id = 1;
 
 	/* Filling array */
-	for(y = 0; y < HEIGHT; y++) {
-		for(x = 0; x < WIDTH; x++) {
+	for(y = 0; y < sy; y++) {
+		for(x = 0; x < sx; x++) {
 			int ix;
 			int iy;
-			gencell(&cell[x][y]);
+			gencell(&cell[x][y], &seed);
 
 			if(x) cell[x][y]._l = &cell[x - 1][y];
-			if(x < (WIDTH - 1)) cell[x][y]._r = &cell[x + 1][y];
+			if(x < (sx - 1)) cell[x][y]._r = &cell[x + 1][y];
 			if(y) cell[x][y]._u = &cell[x][y - 1];
-			if(y < (HEIGHT - 1)) cell[x][y]._d = &cell[x][y + 1];
+			if(y < (sy - 1)) cell[x][y]._d = &cell[x][y + 1];
 
 			cell[x][y]._x = x;
 			cell[x][y]._y = y;
 
-			drawcell(wnd, img, &cell[x][y], cx, cy);
+			drawcell(wnd, img, &cell[x][y], cx, cy, &seed);
 		}
 	}
 
-#ifdef OSP_XDBE_SUPPORT
-	OSPRun(&wnd->_obj, OSPWND_SWAP);
-#endif
-
-	if(start = resolve(cell)) {
+	if(start = resolve(cell, sx, sy)) {
 		tmo = 10;
 		state = RUN;
 	}
@@ -444,7 +477,7 @@ int main(int argc, char *argv[]) {
 						cell[lcx][lcy]._id = cell[cx][cy]._id;
 						cell[cx][cy]._id = lid;
 
-						if(start = resolve(cell)) {
+						if(start = resolve(cell, sx, sy)) {
 							tmo = 100;
 							state = RUN;
 						}
@@ -454,24 +487,24 @@ int main(int argc, char *argv[]) {
 						}
 					}
 
-					drawcell(wnd, img, &cell[lcx][lcy], cx, cy);
+					drawcell(wnd, img, &cell[lcx][lcy], cx, cy, &seed);
 
 					if(state == RUN) {
-						for(y = 0; y < HEIGHT; y++) {
-							for(x = 0; x < WIDTH; x++) {
+						for(y = 0; y < sy; y++) {
+							for(x = 0; x < sx; x++) {
 								if(cell[x][y]._solv) {
 									cell[x][y]._solv = 0x00;
-									drawcell(wnd, img, &cell[x][y], cx, cy);
+									drawcell(wnd, img, &cell[x][y], cx, cy, &seed);
 								}
 							}
 						}
 
-						drawcell(wnd, img, &cell[cx][cy], -1, -1);
+						drawcell(wnd, img, &cell[cx][cy], -1, -1, &seed);
 						cx = -1;
 						cy = -1;
 					}
 					else {
-						drawcell(wnd, img, &cell[cx][cy], cx, cy);
+						drawcell(wnd, img, &cell[cx][cy], cx, cy, &seed);
 					}
 
 #ifdef OSP_XDBE_SUPPORT
@@ -499,8 +532,8 @@ int main(int argc, char *argv[]) {
 					if(start) {
 						last->_id = 0;
 						start->_id = 1;
-						drawcell(wnd, img, last, cx, cy);
-						drawcell(wnd, img, start, cx, cy);
+						drawcell(wnd, img, last, cx, cy, &seed);
+						drawcell(wnd, img, start, cx, cy, &seed);
 
 #ifdef OSP_XDBE_SUPPORT
 						OSPRun(&wnd->_obj, OSPWND_SWAP);
@@ -518,15 +551,15 @@ int main(int argc, char *argv[]) {
 					int banana = 3;
 					process = 0;
 
-					for(y = HEIGHT - 1; y >= 0; y--) {
-						for(x = 0; x < WIDTH; x++) {
+					for(y = sy - 1; y >= 0; y--) {
+						for(x = 0; x < sx; x++) {
 							if(!cell[x][y]._id) {
 								if(y) {
 									cell[x][y]._id = cell[x][y - 1]._id;
 									cell[x][y - 1]._id = 0;
 								}
-								else gencell(&cell[x][y]);
-								drawcell(wnd, img, &cell[x][y], -1, -1);
+								else gencell(&cell[x][y], &seed);
+								drawcell(wnd, img, &cell[x][y], -1, -1, &seed);
 								process = 1;
 							}
 							else if((cell[x][y]._id == 2) && banana) banana = 0;
@@ -535,10 +568,10 @@ int main(int argc, char *argv[]) {
 
 					while(!process && banana--) {
 						while(1) {
-							cell_t *pick = &cell[rand() % WIDTH][rand() % HEIGHT];
+							cell_t *pick = &cell[RANDOM(seed) % sx][RANDOM(seed) % sy];
 							if(pick->_id < 2) continue;
 							pick->_id = 2;
-							drawcell(wnd, img, pick, -1, -1);
+							drawcell(wnd, img, pick, -1, -1, &seed);
 							break;
 						}
 					}
@@ -548,7 +581,7 @@ int main(int argc, char *argv[]) {
 #endif
 				}
 				else {
-					if(start = resolve(cell)) {
+					if(start = resolve(cell, sx, sy)) {
 						state = RUN;
 					}
 					else {
@@ -560,25 +593,25 @@ int main(int argc, char *argv[]) {
 			case FIND:
 				process = 1;
 
-				for(y = 0; y < HEIGHT; y++) {
-					for(x = 0; x < WIDTH; x++) {
+				for(y = 0; y < sy; y++) {
+					for(x = 0; x < sx; x++) {
 						if(cell[x][y]._solv) {
 							cell[x][y]._solv = 0x00;
-							drawcell(wnd, img, &cell[x][y], cx, cy);
+							drawcell(wnd, img, &cell[x][y], cx, cy, &seed);
 						}
 					}
 				}
 
 				while(process) {
-					for(y = 0; y < HEIGHT; y++) {
-						for(x = 0; x < WIDTH; x++) {
+					for(y = 0; y < sy; y++) {
+						for(x = 0; x < sx; x++) {
 							if(cell[x][y]._id) {
 								if(x && cell[x - 1][y]._id) {
 									int lid = cell[x][y]._id;
 									cell[x][y]._id = cell[x - 1][y]._id;
 									cell[x - 1][y]._id = lid;
 
-									if(find(cell)) {
+									if(find(cell, sx, sy)) {
 										process = 0;
 										cell[x][y]._solv |= 0x04;
 										cell[x - 1][y]._solv |= 0x08;
@@ -593,7 +626,7 @@ int main(int argc, char *argv[]) {
 									cell[x][y]._id = cell[x][y - 1]._id;
 									cell[x][y - 1]._id = lid;
 
-									if(find(cell)) {
+									if(find(cell, sx, sy)) {
 										process = 0;
 										cell[x][y]._solv |= 0x01;
 										cell[x][y - 1]._solv |= 0x02;
@@ -607,7 +640,7 @@ int main(int argc, char *argv[]) {
 					}
 
 					if(process) {
-						shake(cell);
+						shake(cell, sx, sy, &seed);
 						redraw++;
 					}
 				}
@@ -616,9 +649,9 @@ int main(int argc, char *argv[]) {
 					printf("%d shakes\n", redraw);
 					redraw = 0;
 
-					if(start = resolve(cell)) {
-						for(y = 0; y < HEIGHT; y++) {
-							for(x = 0; x < WIDTH; x++) {
+					if(start = resolve(cell, sx, sy)) {
+						for(y = 0; y < sy; y++) {
+							for(x = 0; x < sx; x++) {
 								if(cell[x][y]._solv) {
 									cell[x][y]._solv = 0x00;
 								}
@@ -626,16 +659,16 @@ int main(int argc, char *argv[]) {
 						}
 					}
 
-					for(y = 0; y < HEIGHT; y++) {
-						for(x = 0; x < WIDTH; x++) {
-							drawcell(wnd, img, &cell[x][y], cx, cy);
+					for(y = 0; y < sy; y++) {
+						for(x = 0; x < sx; x++) {
+							drawcell(wnd, img, &cell[x][y], cx, cy, &seed);
 						}
 					}
 				}
 				else {
-					for(y = 0; y < HEIGHT; y++) {
-						for(x = 0; x < WIDTH; x++) {
-							if(cell[x][y]._solv) drawcell(wnd, img, &cell[x][y], cx, cy);
+					for(y = 0; y < sy; y++) {
+						for(x = 0; x < sx; x++) {
+							if(cell[x][y]._solv) drawcell(wnd, img, &cell[x][y], cx, cy, &seed);
 						}
 					}
 				}
@@ -658,6 +691,7 @@ int main(int argc, char *argv[]) {
 		}
 	}
 
+	free(cell);
 	OSPFre(0);
 	return 0;
 }

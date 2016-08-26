@@ -19,6 +19,10 @@ void OSPrint(uint64_t level, const char *format, ...) {
 	printf("OSPLog %3lu : %s\n", level, buf);
 }
 
+uint32_t OSPrand(uint32_t seed) {
+	return seed * 1103515245 + 12345;
+}
+
 void *OSPArray(size_t cell, ...) {
     unsigned int dim[256];
     va_list arg;
@@ -46,7 +50,7 @@ void *OSPArray(size_t cell, ...) {
 		}
 
 		acc = 1;
-		ret = malloc(size);
+		ret = calloc(1, size);
 		src = (void **) ret;
 		dst = ret + (dim[0] * sizeof(void *));
 
