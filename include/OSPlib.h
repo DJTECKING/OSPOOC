@@ -17,9 +17,6 @@
 #include<X11/keysym.h>			/* For ??? */
 #include<X11/extensions/Xdbe.h>
 #include<X11/extensions/XShm.h>
-#include<GL/gl.h>
-#include<GL/glx.h>
-#include<GL/glxext.h>			/* For V-sync */
 #include<sys/ipc.h>
 #include<sys/shm.h>
 #include<sys/stat.h>

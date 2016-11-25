@@ -120,8 +120,8 @@ void drawcell(OSPwindow *wnd, OSPimage *img, cell_t *cell,
 			ey++;
 		}
 
-		if(!(RANDOM(*seed) % 3)) OSPBlit(texture(0, 0), img, (RANDOM(*seed) % 4) * SIZE,
-													((RANDOM(*seed) % 2) + 4) * SIZE, x, y, SIZE, SIZE);
+//		if(!(RANDOM(*seed) % 3)) OSPBlit(texture(0, 0), img, (RANDOM(*seed) % 4) * SIZE,
+//													((RANDOM(*seed) % 2) + 4) * SIZE, x, y, SIZE, SIZE);
 
 	case 0:;
 	}

@@ -1,9 +1,8 @@
 In long terms :
 Use pkg-config --variable pc_path pkg-config to know where are stored .pc files.
-Merge from Open gl 2 to vulkan
+work directly with vulkan
 
 In short therms :
-Wrap gl functions
 Manage mouse movment
 Manage keyboard
 

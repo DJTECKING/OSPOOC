@@ -9,8 +9,6 @@
 #define OSPWND_GETKEY			1
 #define OSPWND_GETBTN			2
 #define OSPWND_SWAP				3
-#define OSPSCN_FOCUS			4
-#define OSPSCN_LOOK				5
 
 #define OSPIMG_GETDATA			0
 
@@ -61,32 +59,6 @@ typedef struct OSPwindow_s {
 	GC _gc;
 } OSPwindow;
 
-typedef struct OSPscene_s {
-	OSPobj _obj;
-
-	struct OSPwindow_s *_slv;
-	struct OSPwindow_s *_mtr;
-	struct OSPwindow_s *_prv;
-	struct OSPwindow_s *_nxt;
-
-	OSPdisplay *_dpy;
-	Window _wnd;
-
-	int _x;
-	int _y;
-	int _w;
-	int _h;
-	int _msx;
-	int _msy;
-	uint16_t _btn;
-
-	struct OSPscelem_s *_mvw; /* First element in a model view */
-	GLXContext _glc;
-	int _fd;
-
-	uint8_t _stat;
-} OSPscene;
-
 typedef struct OSPimage_s {
 	OSPobj _obj;
 
@@ -104,9 +76,6 @@ OSPdisplay *OSPDpy(char *dpyname);
 
 OSPctr *OSPWndCtr();
 OSPwindow *OSPWnd(void *, char *, int, int, int, int, uint32_t);
-
-OSPctr *OSPScnCtr();
-OSPscene *OSPScn(OSPwindow *, int, int, int, int, uint32_t);
 
 OSPctr *OSPImgCtr();
 OSPimage *OSPImg(void *, int, int);
