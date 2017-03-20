@@ -1,8 +1,6 @@
 #ifndef __OSPOBJ_H__
 #define __OSPOBJ_H__
 
-#include"../include/OSPlib.h"
-
 struct OSPobj_s;
 
 typedef void (*OSPfct)(struct OSPobj_s *, va_list); // General method definition

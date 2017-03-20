@@ -1,4 +1,4 @@
-#include"../include/OSPlib.h"
+#include"OSPlib.h"
 
 static struct {
 	OSPctr *_constructors;

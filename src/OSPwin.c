@@ -87,7 +87,7 @@ OSPctr *OSPDpyCtr() {
 	static OSPctr *ret = 0;
 
 	if(ret) return ret;
-	ret = OSPCtr(0, 0, sizeof(OSPdisplay), OSPDpyHdl);
+	ret = OSPCtr(0, 1, sizeof(OSPdisplay), OSPDpyHdl);
 
 	ret->_fct[OSPDPY_FLUSH] = OSPdpy_flush;
 
@@ -564,7 +564,7 @@ OSPwindow *OSPWnd(void *master, char *wndname, int x, int y,
 
 	ret->_mtr = mtr;
 	ret->_nxt = mtr->_slv;
-	ret->_prv = mtr->_slv ? mtr->_slv->_prv : 0;
+	ret->_prv = ret->_prv ? ret->_prv->_prv : 0;
 	if(ret->_nxt) ret->_nxt->_prv = ret;
 	if(ret->_prv) ret->_prv->_nxt = ret;
 	mtr->_slv = ret;
@@ -574,6 +574,240 @@ OSPwindow *OSPWnd(void *master, char *wndname, int x, int y,
 
 	return ret;
 }
+
+#define SCN_WINDOW	0x01
+
+void OSPScnHdl(OSPobj **obj) {
+	OSPscene *scn = (OSPscene *) obj[0];
+
+	if(scn->_mtr->_slv == (OSPwindow *) scn) {
+		if(scn->_nxt) scn->_mtr->_slv = scn->_nxt;
+		else scn->_mtr->_slv = scn->_prv;
+	}
+
+	if(scn->_nxt) scn->_nxt->_prv = scn->_prv;
+	if(scn->_prv) scn->_prv->_nxt = scn->_nxt;
+
+	if(scn->_glc) glXDestroyContext(scn->_dpy->_dpy, scn->_glc);
+	if(scn->_stat & SCN_WINDOW) XDestroyWindow(scn->_dpy->_dpy, scn->_wnd);
+	XFlush(scn->_dpy->_dpy);
+}
+
+void OSPscn_swap(OSPobj *obj, va_list arg) {
+	OSPscene *scn = (OSPscene *) obj;
+
+	glXSwapBuffers(scn->_dpy->_dpy, scn->_wnd);
+}
+
+void OSPscn_focus(OSPobj *obj, va_list arg) {
+	OSPscene *scn = (OSPscene *) obj;
+
+	glXMakeCurrent(scn->_dpy->_dpy, scn->_wnd, scn->_glc);
+}
+
+void OSPscn_look(OSPobj *obj, va_list arg) {
+	double side[3], matrix[16] = {0};
+
+	double eyePosition3D[3] = {va_arg(arg, double),
+							va_arg(arg, double),
+							va_arg(arg, double)};
+	double center3D[3] = {va_arg(arg, double),
+							va_arg(arg, double),
+							va_arg(arg, double)};
+	double upVector3D[3] = {va_arg(arg, double),
+							va_arg(arg, double),
+							va_arg(arg, double)};
+
+	double forward[3] = {center3D[0] - eyePosition3D[0],
+							center3D[1] - eyePosition3D[1],
+							center3D[2] - eyePosition3D[2]};
+
+	double normal = sqrt((forward[0] * forward[0]) +
+						(forward[1] * forward[1]) +
+						(forward[2] * forward[2]));
+
+	forward[0] /= normal;
+	forward[1] /= normal;
+	forward[2] /= normal;
+
+	side[0] = (forward[1] * upVector3D[2]) - (forward[2] * upVector3D[1]);
+	side[1] = (forward[2] * upVector3D[0]) - (forward[0] * upVector3D[2]);
+	side[2] = (forward[0] * upVector3D[1]) - (forward[1] * upVector3D[0]);
+
+	normal = sqrt((side[0] * side[0]) +
+					(side[1] * side[1]) +
+					(side[2] * side[2]));
+
+	side[0] /= normal;
+	side[1] /= normal;
+	side[2] /= normal;
+
+	upVector3D[0] = (side[1] * forward[2]) - (side[2] * forward[1]);
+	upVector3D[1] = (side[2] * forward[0]) - (side[0] * forward[2]);
+	upVector3D[2] = (side[0] * forward[1]) - (side[1] * forward[0]);
+
+	matrix[0] = -side[0];	matrix[1] = upVector3D[0];	matrix[2] = -forward[0];	matrix[3] = 0.0;
+	matrix[4] = -side[1];	matrix[5] = upVector3D[1];	matrix[6] = -forward[1];	matrix[7] = 0.0;
+	matrix[8] = -side[2];	matrix[9] = upVector3D[2];	matrix[10] = -forward[2];	matrix[11] = 0.0;
+	matrix[12] = 0.0;		matrix[13] = 0.0;	matrix[14] = 0.0;			matrix[15] = 1.0;
+
+	glMultMatrixd(matrix);
+	glTranslated(-eyePosition3D[0], -eyePosition3D[1], -eyePosition3D[2]);
+}
+
+OSPctr *OSPScnCtr() {
+	static OSPctr *ret = 0;
+
+	if(ret) return ret;
+	ret = OSPCtr(OSPWndCtr(), 6, sizeof(OSPscene), OSPScnHdl);
+
+	ret->_fct[OSPWND_SWAP] = OSPscn_swap;
+	ret->_fct[OSPSCN_FOCUS] = OSPscn_focus;
+	ret->_fct[OSPSCN_LOOK] = OSPscn_look;
+
+	return ret;
+}
+
+OSPscene *OSPScn(OSPwindow *wnd, int x, int y, int width, int height, uint32_t back) {
+	OSPscene *ret;
+
+	if(!wnd) return 0;
+
+	if(wnd->_obj._fct != OSPWndCtr()->_fct) {
+		OSPrint(0, "OSPscene : Need a window as first param");
+		return 0;
+	}
+
+	ret = (OSPscene *) OSPAdd(OSPScnCtr());
+	ret->_dpy = wnd->_dpy;
+
+	if(!wnd->_dpy->_vfo[1].visual) {
+		/* Open GL visual needs to be found */
+		int attribs[] = {
+			GLX_X_RENDERABLE,	True,
+			GLX_DRAWABLE_TYPE,	GLX_WINDOW_BIT | GLX_PIXMAP_BIT,
+			GLX_RENDER_TYPE,	GLX_RGBA_BIT,
+			GLX_X_VISUAL_TYPE,	GLX_TRUE_COLOR,
+			GLX_RED_SIZE,		8,
+			GLX_GREEN_SIZE,		8,
+			GLX_BLUE_SIZE,		8,
+			GLX_ALPHA_SIZE,		8,
+			GLX_DEPTH_SIZE,		24,
+			GLX_STENCIL_SIZE,	8,
+			GLX_DOUBLEBUFFER,	True, None
+		};
+		int best_fbc = -1, best_num_samp = -1, idx, vcnt;
+		XVisualInfo *vfo;
+
+		GLXFBConfig* fbc = glXChooseFBConfig(ret->_dpy->_dpy, ret->_dpy->_scn, attribs, &vcnt);
+		if(!vcnt) {
+			OSPrint(0, "OSPscene : Scene not available");
+
+			OSPFre(&ret->_obj);
+			return 0;
+		}
+
+		for(idx = 0; idx < vcnt; idx++) {
+			XVisualInfo *vi = glXGetVisualFromFBConfig(ret->_dpy->_dpy, fbc[idx]);
+
+			if(vi) {
+				int samples;
+				glXGetFBConfigAttrib(ret->_dpy->_dpy, fbc[idx], GLX_SAMPLES, &samples);
+
+				if(samples > best_num_samp) {
+					best_fbc = idx;
+					best_num_samp = samples;
+				}
+			}
+
+			XFree(vi);
+		}
+
+		if(best_fbc == -1) {
+			XFree(fbc);
+
+			OSPFre(&ret->_obj);
+			return 0;
+		}
+
+		vfo = glXGetVisualFromFBConfig(ret->_dpy->_dpy, fbc[best_fbc]);
+		memcpy(&ret->_dpy->_vfo[1], vfo, sizeof(XVisualInfo));
+
+		/* Be sure to free the FBConfig list allocated by glXChooseFBConfig() */
+		XFree(fbc);
+
+		/* window attributes */
+		ret->_dpy->_atr[1].colormap = XCreateColormap(ret->_dpy->_dpy,
+												wnd->_wnd,
+												vfo->visual, AllocNone);
+		XFree(vfo);
+		ret->_dpy->_atr[1].border_pixel = 0;
+		ret->_dpy->_atr[1].event_mask = KeyPressMask | /* Keyboard down events wanted */
+										KeyReleaseMask | /* Keyboard up events wanted */
+										ButtonPressMask | /* Pointer button down events wanted */
+										ButtonReleaseMask | /* Pointer button up events wanted */
+										EnterWindowMask | /* Pointer window entry events wanted */
+										LeaveWindowMask | /* Pointer window leave events wanted */
+										PointerMotionMask | /* Pointer motion events wanted */
+										PointerMotionHintMask | /* Pointer motion hints wanted */
+										Button1MotionMask | /* Pointer motion while button 1 down */
+										Button2MotionMask | /* Pointer motion while button 2 down */
+										Button3MotionMask | /* Pointer motion while button 3 down */
+										Button4MotionMask | /* Pointer motion while button 4 down */
+										Button5MotionMask | /* Pointer motion while button 5 down */
+										ButtonMotionMask | /* Pointer motion while any button down */
+										KeymapStateMask | /* Keyboard state wanted at window entry and focus in */
+										ExposureMask; /* Any exposure wanted */
+
+										/* VisibilityChangeMask | Any change in visibility wanted */
+										/* StructureNotifyMask | Any change in window structure wanted */
+										/* ResizeRedirectMask | Redirect resize of this window */
+										/* SubstructureNotifyMask | Substructure notification wanted */
+										/* SubstructureRedirectMask | Redirect structure requests on children */
+										/* FocusChangeMask | Any change in input focus wanted */
+										/* PropertyChangeMask | Any change in property wanted */
+										/* ColormapChangeMask | Any change in colormap wanted */
+										/* OwnerGrabButtonMask; Automatic grabs should activate with owner_events set to True */
+	}
+
+	ret->_dpy->_atr[1].background_pixel = back;
+
+	ret->_dpy = wnd->_dpy;
+	ret->_wnd = XCreateWindow(ret->_dpy->_dpy, wnd->_wnd, x, y, width, height, 0,
+								ret->_dpy->_vfo[1].depth, InputOutput,
+								ret->_dpy->_vfo[1].visual, CWColormap |
+								CWBorderPixel | CWBackPixel |
+								CWEventMask, &ret->_dpy->_atr[1]);
+
+	ret->_stat &= SCN_WINDOW;
+
+	ret->_glc = glXCreateContext(ret->_dpy->_dpy, &ret->_dpy->_vfo[1], 0, True);
+	if(!ret->_glc) {
+		OSPFre(&ret->_obj);
+		return 0;
+	}
+
+	ret->_x = x;
+	ret->_y = y;
+	ret->_w = width;
+	ret->_h = height;
+
+	ret->_mtr = wnd;
+	ret->_nxt = wnd->_slv;
+	ret->_prv = wnd->_slv ? wnd->_slv->_prv : 0;
+	if(ret->_nxt) ret->_nxt->_prv = (OSPwindow *) ret;
+	if(ret->_prv) ret->_prv->_nxt = (OSPwindow *) ret;
+	wnd->_slv = (OSPwindow *) ret;
+	while(wnd->_slv->_prv) wnd->_slv = wnd->_slv->_prv;
+
+	XMapWindow(ret->_dpy->_dpy, ret->_wnd);
+
+	OSPRun(&ret->_obj, OSPSCN_FOCUS);
+
+	return ret;
+}
+
+#undef SCN_WINDOW
 
 #define SHM_ATTR	0x01
 #define SHM_ALLOC	0x02

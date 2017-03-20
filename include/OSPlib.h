@@ -17,6 +17,10 @@
 #include<X11/keysym.h>			/* For ??? */
 #include<X11/extensions/Xdbe.h>
 #include<X11/extensions/XShm.h>
+#include<GL/gl.h>
+#include<GL/glx.h>
+#include<GL/glxext.h>			/* For V-sync */
+#include<vulkan/vulkan.h>		/* Doomed to replace GL */
 #include<sys/ipc.h>
 #include<sys/shm.h>
 #include<sys/stat.h>
@@ -30,7 +34,8 @@
 
 #include"../include/OSPobj.h"	/* General object implementation */
 #include"../include/OSPutl.h"	/* General functions with no dependence */
-#include"../include/OSPwin.h"	/* Graphical functions */
+#include"../include/OSPvlk.h"	/* Advenced gpu functions */
+#include"../include/OSPwin.h"	/* Windowing and basical graphic functions */
 //	#include"OSPdev.h"			/* Generic devices, never implement as is */
 //	#include"OSPsrv.h"			/* Server implementation */
 

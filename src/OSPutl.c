@@ -1,4 +1,4 @@
-#include"../include/OSPlib.h"
+#include"OSPlib.h"
 
 void OSPrint(uint64_t level, const char *format, ...) {
 	static uint64_t lvl = 0;

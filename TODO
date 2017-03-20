@@ -1,8 +1,9 @@
 In long terms :
 Use pkg-config --variable pc_path pkg-config to know where are stored .pc files.
-work directly with vulkan
 
 In short therms :
 Manage mouse movment
 Manage keyboard
+Resolve vulkan bugs and TODOs
+Add vulkan command and data buffer objects
 
