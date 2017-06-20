@@ -34,8 +34,10 @@
 
 #include"../include/OSPobj.h"	/* General object implementation */
 #include"../include/OSPutl.h"	/* General functions with no dependence */
-#include"../include/OSPvlk.h"	/* Advenced gpu functions */
+#include"../include/OSPdev.h"	/* Device virtual class defines default system call encapsulation */
+#include"../include/OSPskt.h"	/* Device derived class that holds network communications */
 #include"../include/OSPwin.h"	/* Windowing and basical graphic functions */
+#include"../include/OSPvlk.h"	/* Advenced gpu functions */
 //	#include"OSPdev.h"			/* Generic devices, never implement as is */
 //	#include"OSPsrv.h"			/* Server implementation */
 

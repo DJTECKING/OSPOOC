@@ -368,7 +368,7 @@ int main(int argc, char *argv[]) {
 	} state = FIND;
 
 	OSPrint(2, 0);
-	srand(time(0));
+	srand(seed);
 
 	if(argc != 2) {
 		printf("Need level\n");
@@ -424,7 +424,7 @@ int main(int argc, char *argv[]) {
 		return -1;
 	}
 
-	cell[RANDOM(seed) % sx][RANDOM(seed)  % sy]._id = 1;
+	cell[RANDOM(seed) % sx][RANDOM(seed) % sy]._id = 1;
 
 	/* Filling array */
 	for(y = 0; y < sy; y++) {

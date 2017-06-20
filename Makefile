@@ -3,7 +3,7 @@ IFLAGS	= -Iinclude
 CFLAGS	= -std=c99 -fPIC -pedantic -Wall -Wextra -c
 EXTFLS	= -DOSP_XDBE_SUPPORT
 DFLAGS	= -D_XOPEN_SOURCE $(EXTFLS)
-LFLAGS	= -shared -lX11 -lXext -lm -lGL -lvulkan
+LFLAGS	= -shared -lX11 -lXext -lm -lGL# -lvulkan
 EFLAGS	= -L./lib -lOSPOOC
 
 TARGET	= lib/libOSPOOC.so

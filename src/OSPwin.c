@@ -1316,12 +1316,6 @@ int OSPImgSave(OSPimage *img, int fd) {
 	if(!idx && (write(fd, &header._bit_per_sample, 1) != 1)) idx = 1;
 	if(!idx && (write(fd, &header._descriptor, 1) != 1)) idx = 1;
 #else
-	for(idx = 0; idx < 18; idx++) {
-			printf("%02X ", ((uint8_t *) &header)[idx]);
-	}
-
-	printf("\n"); idx = 0;
-
 	while(idx < 18) {
 		int rem = write(fd, &((uint8_t *) &header)[idx], 18 - idx);
 

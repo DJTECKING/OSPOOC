@@ -25,18 +25,20 @@ typedef struct OSPctr_s {
 	OSPbuf *_buf; /* Pool list */
 	uint64_t _fnb; /* Number of function */
 	uint64_t _dsz; /* Data size multiple of sizeof(void *) */
+	uint32_t _vrt; /* Is this a virtual class */
 	OSPhdl _hdl; /* Event handler */
 	OSPfct _fct[]; /* Function array */
 	/* Take care, function ID are absolute and positive, it is never relative to a derived object */
 } OSPctr;
 
-/* Add a constructor or define default pool size with args : (X, defpoolsize, 0, X) */
+/* To add a constructor use : mother class constructor, funcnum, datsize, OSPhdl hdl) */
+/* To define default pool size use : X, defpoolsize, 0, X */
 OSPctr *OSPCtr(OSPctr *, uint64_t, uint64_t, OSPhdl);
 OSPobj *OSPAdd(OSPctr *); /* Allocate an object or free all memory with 0 as argument */
 void OSPRun(OSPobj *, uint64_t, ...);
 void OSPFre(OSPobj *); /* Runs ctr._hdl method with obj._buf field reseted if ctr._hld defined */
 
-void OSPTrg(OSPobj *, int, uint32_t);
+int OSPTrg(OSPobj *, int, uint32_t);
 OSPobj *OSPWte(int *);
 
 #endif /* __OSPOBJ_H__ */
