@@ -46,6 +46,7 @@ void cube() {
 }
 
 int main(int argc, char *argv[]) {
+	OSPdisplay *dpy;
 	OSPwindow *wnd;
 	OSPscene *scn;
 	OSPobj *trig;
@@ -59,6 +60,7 @@ int main(int argc, char *argv[]) {
 	/* Create objects */
 
 	wnd = OSPWnd(0, "OSPOOC Demo", 0, 0, WIDTH, HEIGHT, 0x00000000);
+	dpy = OSPDpyOf(wnd); /* Save display here */
 
 	if(!wnd) {
 		OSPFre(0);
@@ -76,8 +78,12 @@ int main(int argc, char *argv[]) {
 		int timestat = 16;
 		trig = OSPWte(&timestat);
 
-		if(timestat) { /* One window were cancelled */
-			if(trig == &OSPDpyOf(wnd)->_obj) {
+		if(timestat) {
+			/* Since dpy has been destroyed, and window too,
+				we use here previously saved dpy.
+				&OSPDpyOf(wnd)->_obj would segfault here */
+
+			if(trig == &dpy->_obj) {
 				run = 0;
 			}
 		}
