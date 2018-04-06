@@ -12,7 +12,7 @@ void OSPRun(OSPobj *obj, uint64_t fctid, ...) {
 	va_list arg;
 
 	if(!obj) {
-		OSPrint(0, "OSPRun : Object not specified");
+		OSPrint(0, "OSPAdd : Object needed as argument");
 		return;
 	}
 
@@ -26,6 +26,25 @@ void OSPRun(OSPobj *obj, uint64_t fctid, ...) {
 	va_end(arg);
 }
 
+/* Clear an object content */
+void OSPClr(OSPobj *obj) {
+	OSPbuf *buf;
+	uint64_t dsz;
+
+	if(!obj) {
+		OSPrint(0, "OSPClr : No object given as argument");
+		return;
+	}
+
+	if(!(buf = obj->_buf)) {
+		OSPrint(0, "OSPClr : Cannot clear an already freed object");
+		return;
+	}
+
+	dsz = buf->_ctr->_dsz - sizeof(OSPobj);
+	memset(&obj[1], 0, dsz);
+}
+
 /* Get buffer starting point */
 void *OSPGetBuffer(OSPbuf *buf) {
 	return &buf->_fre[(buf->_fre[0] >> 7) + (buf->_fre[0] & 0x7E ? 2 : 1)];
@@ -34,8 +53,16 @@ void *OSPGetBuffer(OSPbuf *buf) {
 /* Allocate a buffer */
 OSPbuf *OSPBuf(OSPctr *ctr, uint64_t cnt) {
 	uint64_t no;
-	OSPbuf *ret = calloc(1, sizeof(OSPbuf) +
-							0x10 + (((cnt - 1) >> 3) & ~0x07) +
+	OSPbuf *ret;
+
+	if(!ctr) {
+		OSPrint(0, "OSPBuf : Constructor needed as argument");
+		return 0;
+	}
+	
+	/* 0x10 is 16 octet space : 8 for fre[0] and 8 for fre[0] always allocated */
+	ret = calloc(1, sizeof(OSPbuf) +
+					0x10 + (((cnt - 1) >> 3) & ~0x07LLU) +
 							(ctr->_dsz * cnt));
 
 	if(!ret) {
@@ -46,14 +73,15 @@ OSPbuf *OSPBuf(OSPctr *ctr, uint64_t cnt) {
 
 	ret->_fre[0] = (cnt << 1) | 1;
 	ret->_ctr = ctr;
-	ret->_nxt = ctr->_buf;
+	if((ret->_nxt = ctr->_buf)) ret->_pcd = ret->_nxt->_pcd;
+	ret->_pcd += cnt;
 
-	for(no = 0; no < (cnt >> 7); no++) {
-		ret->_fre[no + 1] = ~0;
+	for(no = 0; no < (cnt >> 6); no++) {
+		ret->_fre[no + 1] = ~0LLU;
 	}
 
-	for(no = 0; no < ((ret->_fre[0] & 0x7E) >> 1); no++) {
-		ret->_fre[(cnt >> 7) + 1] |= 1 << no;
+	for(no = 0; no < ((ret->_fre[0] & 0x7ELLU) >> 1); no++) {
+		ret->_fre[(cnt >> 6) + 1] |= 1LLU << no;
 	}
 	
 	return ret;
@@ -73,8 +101,8 @@ OSPctr *OSPCtr(OSPctr *mtr, uint64_t fnb, uint64_t dsz, OSPhdl hdl) {
 
 	/* Return error if not aligned object */
 	if(dsz % sizeof(void *)) {
-		OSPrint(0, "OSPCtr : object not aligned on %llu memory cells, "
-				"size specified is %llu", sizeof(void *), sizeof(OSPobj));
+		OSPrint(0, "OSPCtr : object not aligned on %llu octets memory cells, "
+				"size specified is %llu", sizeof(void *), dsz);
 		return 0;
 	}
 
@@ -151,7 +179,7 @@ void OSPFreeBuf(OSPbuf *buf) {
 			}
 
 			for(flag = 0; flag < 64; flag++) {
-				if(!(buf->_fre[no + 1] & (1 << flag))) {
+				if(!(buf->_fre[no + 1] & (1LLU << flag))) {
 					OSPobj *obj = (OSPobj *) element;
 
 					obj->_buf = 0;
@@ -163,7 +191,7 @@ void OSPFreeBuf(OSPbuf *buf) {
 		}
 
 		for(no = 0; no < ((cnt & 0x7E) >> 1); no++) {
-			if(!(buf->_fre[(cnt >> 7) + 1] & (1 << no))) {
+			if(!(buf->_fre[(cnt >> 7) + 1] & (1LLU << no))) {
 				OSPobj *obj = (OSPobj *) element;
 
 					obj->_buf = 0;
@@ -203,11 +231,14 @@ void OSPFre(OSPobj *obj) {
 	uint64_t no;
 	uint64_t *fre;
 	uint64_t flag;
+	uint64_t num;
 
 	if(!obj) {
 		OSPDtr(OSProot._constructors);
 		return;
 	}
+
+//	printf("Libere un objet pour 0x%p\n", obj->_buf->_ctr);
 
 	buf = obj->_buf;
 	ctr = buf->_ctr;
@@ -215,7 +246,7 @@ void OSPFre(OSPobj *obj) {
 	element = (off_t) obj;
 	no = (element - array) / ctr->_dsz;
 	fre = &buf->_fre[(no >> 6) + 1];
-	flag = 1 << (no & 0x3F);
+	flag = 1LLU << (no & 0x3F);
 
 	if(fre[0] & flag) {
 		OSPrint(0, "OSPFre : Double free at %p in pool %p of class %p at slot no %llu",
@@ -230,15 +261,70 @@ void OSPFre(OSPobj *obj) {
 
 	fre[0] |= flag;
 	buf->_fre[0] |= 1;
+	num = no + (buf->_nxt ? buf->_nxt->_pcd : 0);
+
+	/* Freed the lastest element of this constructor,
+		searching the new one */
+	flag >>= 1;
+	num--;
+	if((num + 2) == ctr->_cnt) {
+		while(buf) {
+			OSPbuf *nxt;
+
+			while(flag) {
+				if(!(fre[0] & flag)) {
+					ctr->_cnt = num + 1;
+					return;
+				}
+
+				flag >>= 1;
+				num--;
+			}
+
+			fre--;
+			num--;
+
+			while(fre > buf->_fre) {
+				if(fre[0] != ~0LLU) {
+					/* Do a dichotomy here */
+					flag = 1LLU << 63;
+					while(fre[0] & flag) {
+						flag >>= 1;
+						num--;
+					}
+
+					ctr->_cnt = num + 1;
+					return;
+				}
+
+				fre--;
+				num -= 64;
+			}
+
+			/* The pool is totally free, destroy it */
+//			printf("Liberer le buffer\n");
+			nxt = buf->_nxt;
+			buf->_nxt = 0; /* Cut OSPFreeBuf recursivity */
+			ctr->_buf = nxt;
+			OSPFreeBuf(buf);
+			buf = nxt;
+			if(buf) {
+				no = (buf->_fre[0] >> 1) - 1;
+				fre = &buf->_fre[(no >> 6) + 1];
+				flag = 1LLU << (no & 0x3F);
+			}
+		}
+	}
 }
 
 /* Add an object */
 OSPobj *OSPAdd(OSPctr *ctr) {
 	OSPobj *ret = 0;
-	OSPbuf *buf = 0;
-	OSPbuf *nxt;
+	OSPbuf *buf;
+	uint64_t num;
 
 	if(!ctr) {
+		OSPrint(0, "OSPAdd : Constructor needed as argument");
 		return 0;
 	}
 
@@ -247,55 +333,150 @@ OSPobj *OSPAdd(OSPctr *ctr) {
 		return 0;
 	}
 
-	for(nxt = ctr->_buf; nxt; nxt = nxt->_nxt) {
+	for(buf = ctr->_buf; buf; buf = buf->_nxt) {
 		uint64_t no;
-		uint64_t cnt = nxt->_fre[0];
-		uint8_t *element = OSPGetBuffer(nxt);
+		uint64_t cnt = buf->_fre[0];
+		uint8_t *element;
 		uint8_t mflag;
 
-		if(!(cnt & 1)) {
-			continue;
-		}
+		if(!(cnt & 1)) continue;
 
-		buf = nxt;
+		cnt >>= 1;
+		element = OSPGetBuffer(buf);
+		num = buf->_nxt ? buf->_nxt->_pcd : 0;
 
 		/* Find a "free" cell with at least one bit free */
-		for(no = 0; no < (cnt >> 7); no++) {
-			if(!buf->_fre[no + 1]) {
+		for(no = 0; no < (cnt >> 6); no++) {
+			if(buf->_fre[no + 1]) break;
 				element += ctr->_dsz * 64;
-				break;
-			}
 		}
 
-		mflag = (no == (cnt >> 7)) ? ((cnt & 0x7E) >> 1) : 64;
+		if(no == (cnt >> 6)) {
+			if(!buf->_fre[no + 1]) {
+				buf->_fre[0] &= ~1LLU;
+				continue;
+			}
+
+			mflag = cnt & 0x3FLLU;
+		}
+		else mflag = 64;
+
 		cnt = no + 1;
+		num += no << 6;
+
 
 		for(no = 0; no < mflag; no++) {
-			if(buf->_fre[cnt] & (1 << no)) {
+			if(buf->_fre[cnt] & (1LLU << no)) {
 				ret = (OSPobj *) element;
 				ret->_buf = buf;
 				ret->_fct = ctr->_fct;
 
-				buf->_fre[(cnt >> 7) + 1] &= ~(1 << no);
+				buf->_fre[cnt] &= ~(1LLU << no);
 
+				num += no + 1;
+				if(num > ctr->_cnt) ctr->_cnt = num;
 				return ret;
 			}
 
 			element += ctr->_dsz;
 		}
 
-		nxt->_fre[0] &= ~1;
+		/* Finally found that buffer is full */
+		buf->_fre[0] &= ~1LLU;
 	}
 
 	/* No free pool, creating a new one, twice the size of the precedent if exist */
-	ctr->_buf = OSPBuf(ctr, buf ? ctr->_buf->_fre[0] : OSProot._defbufsize);
-	ctr->_buf->_fre[1] &= ~1;
+	num = ctr->_buf ? ctr->_buf->_pcd : 0;
+	ctr->_cnt = num + 1;
+	ctr->_buf = OSPBuf(ctr, ctr->_buf ? ctr->_buf->_fre[0] : OSProot._defbufsize);
+	ctr->_buf->_fre[1] &= ~1LLU;
 
 	ret = (OSPobj *) OSPGetBuffer(ctr->_buf);
 	ret->_buf = ctr->_buf;
 	ret->_fct = ctr->_fct;
 
 	return ret;
+}
+
+/* Get object number in the pool */
+uint64_t OSPNum(OSPobj *obj) {
+	OSPbuf *buf;
+	OSPctr *ctr;
+	off_t array;
+	off_t element;
+	uint64_t no;
+
+	if(!obj) {
+		OSPrint(0, "OSPNum : No object given as argument");
+		return 0;
+	}
+
+	if(!(buf = obj->_buf)) {
+		OSPrint(0, "OSPNum : Object already freed, can't get number");
+		return 0;
+	}
+
+	ctr = buf->_ctr;
+	array = (off_t) OSPGetBuffer(buf);
+	element = (off_t) obj;
+	no = (element - array) / ctr->_dsz;
+	if(buf->_nxt) return no + buf->_nxt->_pcd;
+	return no;
+}
+
+/* Get object from it's number in the pool */
+OSPobj *OSPOid(OSPctr *ctr, uint64_t id) {
+	OSPbuf *buf;
+
+	if(!ctr) {
+		OSPrint(0, "OSPOid : No constructor given as argument");
+		return 0;
+	}
+
+	if(!(buf = ctr->_buf)) {
+		OSPrint(1, "OSPOid : No object yet instanciated");
+		return 0;
+	}
+
+	if(id > buf->_pcd) {
+		OSPrint(1, "OSPOid : Id %ld out of object range", id);
+		return 0;
+	}
+
+	while(buf) {
+		if(!buf->_nxt) {
+			uint8_t *element;
+
+			if(buf->_fre[(id >> 6) + 1] & (1LLU << (id & 0x3FLLU))) {
+//				OSPrint(1, "OSPOid : Object no %ld not yet instanciated or already freed", id);
+				return 0;
+			}
+
+			element = OSPGetBuffer(buf);
+			return (OSPobj *) &element[id * ctr->_dsz];
+		}
+
+		if(id >= buf->_nxt->_pcd) {
+			if(id < buf->_pcd) {
+				uint8_t *element;
+				id -= buf->_nxt->_pcd;
+
+				if(buf->_fre[(id >> 6) + 1] & (1LLU << (id & 0x3F))) {
+//					OSPrint(1, "OSPOid : Object no %ld not yet instanciated or already freed",
+//							id + buf->_nxt->_pcd);
+					return 0;
+				}
+
+				element = OSPGetBuffer(buf);
+				return (OSPobj *) &element[id * ctr->_dsz];
+			}
+		}
+
+		buf = buf->_nxt;
+	}
+
+	OSPrint(0, "OSPOid : Internal error", id);
+	return 0;
 }
 
 /*	Subscribes/Unsubscribes an object to events comming from an fd.
@@ -390,7 +571,8 @@ int OSPTrg(OSPobj *obj, int fd, uint32_t events) {
 	}
 
 	if(epoll_ctl(OSProot._eventpoll, obj ? EPOLL_CTL_ADD : EPOLL_CTL_DEL, fd, &event)) {
-		OSPrint(0, "OSPTrg : Unable to subscribe object to fd events : %s", strerror(errno));
+		OSPrint(0, "OSPTrg : Unable to %ssubscribe object to fd events : %s",
+				obj ? "" : "un", strerror(errno));
 		return -1;
 	}
 
